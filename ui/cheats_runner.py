@@ -27,6 +27,9 @@ _menu_key_time = 0.0
 _aim_key       = False
 _trigger_key   = False
 
+# RCS state - punch angle tracking
+_rcs_last_punch = (0.0, 0.0)  # (pitch, yaw)
+
 # Entity snapshot - thread tarafindan guncellenir
 _entities_snapshot = []
 _local_snapshot    = None
@@ -362,6 +365,10 @@ def run_frame():
     if aim_config.enabled and _aim_key and aim_pos:
         _run_aimbot(local, aim_pos)
 
+    # RCS - aimbot aktif olmasa bile çalışır
+    if aim_config.rcs_enabled:
+        _run_rcs(local)
+
 
 def _draw_bones(bones, color, draw_list):
     from core.bone import BONE_CHAINS
@@ -424,3 +431,59 @@ def _run_aimbot(local, aim_pos):
     tx/=fs*sf; ty/=fs*sf
     if aim_config.smooth>0: kmbox.move_auto(tx,ty,60*aim_config.smooth)
     else: kmbox.move(tx,ty)
+
+
+def _run_rcs(local):
+    """
+    Recoil Control System - m_aimPunchAngle delta bazlı kompansasyon.
+    CS2, aimPunchAngle'ı view'a x2 scale ile uygular.
+    Biz de delta * 2 * scale kadar mouse'u ters yönde hareket ettiririz.
+    """
+    global _rcs_last_punch
+
+    # Sadece sol tık basılıyken ve en az 1 mermi atılmışsa çalış
+    if not (_user32.GetAsyncKeyState(win32con.VK_LBUTTON) & 0x8000):
+        _rcs_last_punch = (0.0, 0.0)
+        return
+
+    local_pawn = local.get("pawn")
+    if not local_pawn:
+        return
+
+    shots = pm.read_i32(local_pawn + off.iShotsFired)
+    if shots < 1:
+        _rcs_last_punch = (0.0, 0.0)
+        return
+
+    # aimPunchAngle: QAngle (pitch, yaw)
+    punch_pitch, punch_yaw = pm.read_vec2(local_pawn + off.aimPunchAngle)
+
+    last_pitch, last_yaw = _rcs_last_punch
+
+    # Delta: bu frame ile önceki frame arasındaki fark
+    delta_pitch = punch_pitch - last_pitch
+    delta_yaw   = punch_yaw   - last_yaw
+
+    _rcs_last_punch = (punch_pitch, punch_yaw)
+
+    # CS2 punch scale = 2.0
+    scale = aim_config.rcs_scale * 2.0
+
+    move_x = delta_yaw   * scale
+    move_y = delta_pitch * scale
+
+    if abs(move_x) < 0.1 and abs(move_y) < 0.1:
+        return
+
+    # Ekran piksel başına açı oranı (sensitivity bağımsız, ham mouse unit)
+    # CS2'de 1 mouse unit ≈ 0.022 derece (default sensitivity=1, m_yaw=0.022)
+    # Biz doğrudan derece cinsinden delta'yı piksel'e çeviriyoruz
+    sw = game.view.screen_w
+    fov = max(local.get("fov", 90), 1)
+    deg_per_px = fov / sw  # yaklaşık derece/piksel
+
+    px = move_x / deg_per_px if deg_per_px > 0 else move_x
+    py = move_y / deg_per_px if deg_per_px > 0 else move_y
+
+    from utils.kmbox import kmbox
+    kmbox.move(px, py)

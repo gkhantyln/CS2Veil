@@ -93,7 +93,7 @@ Program başladığında:
 
 ## Arayüz Rehberi
 
-Menü 5 sekmeden oluşur:
+Menü 4 sekmeden oluşur:
 
 ### 🎨 Gorsel Sekmesi
 ESP görsel ayarları

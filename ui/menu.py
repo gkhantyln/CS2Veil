@@ -131,6 +131,16 @@ def render_menu():
                                                        aim_config.ignore_on_shot)
 
         imgui.separator()
+        imgui.text("Geri Tepme Kontrolu (RCS)")
+        _, aim_config.rcs_enabled = imgui.checkbox("RCS Aktif", aim_config.rcs_enabled)
+        if aim_config.rcs_enabled:
+            _, aim_config.rcs_scale = imgui.slider_float(
+                "RCS Guc", aim_config.rcs_scale, 0.1, 2.0, "%.2f")
+            imgui.text_colored(
+                "Sol tik basili + ates ederken aktif",
+                0.6, 0.6, 0.6, 1.0)
+
+        imgui.separator()
         imgui.text_colored("Aktif Tus: " + AIM_HOTKEY_NAMES[aim_config.hotkey_index],
                            0.4, 1.0, 0.4, 1.0)
         imgui.end_tab_item()
