@@ -1,6 +1,10 @@
 # CS2Veil — External CS2 Yardımcı Yazılımı
 ### github@gkhantyln
 
+<p align="center">
+  <img src="cs2veil.png" alt="CS2Veil" width="600"/>
+</p>
+
 ---
 
 > ⚠️ **YASAL UYARI**
