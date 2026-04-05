@@ -65,7 +65,6 @@ Pillow
 3. Gerekli dosyaların mevcut olduğunu kontrol edin:
    - `offsets.json` — CS2 offset dosyası
    - `client.dll.json` — CS2 client offset dosyası
-   - `kmbox.json` — Mouse controller ayarı
 
 > **Not:** `offsets.json` ve `client.dll.json` dosyaları CS2 güncellemelerinde değişebilir.
 > Güncel dosyalar için: https://github.com/a2x/cs2-dumper/tree/main/output
@@ -298,13 +297,11 @@ CS2_Python/
 ├── main.py              ← Ana program
 ├── offsets.json         ← CS2 offset'leri (güncel tutun)
 ├── client.dll.json      ← CS2 client offset'leri (güncel tutun)
-├── kmbox.json           ← Mouse controller ayarı
 ├── config/              ← Kayıtlı config dosyaları
 ├── core/                ← Bellek okuma modülleri
 ├── mods/                ← Aimbot, Triggerbot, Radar
 ├── ui/                  ← Arayüz
-├── utils/               ← Yardımcı araçlar
-└── debug/               ← Debug araçları
+└── utils/               ← Yardımcı araçlar
 ```
 
 ---

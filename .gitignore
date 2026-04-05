@@ -2,8 +2,6 @@ __pycache__/
 *.pyc
 *.pyo
 config/
-tests/
-debug/
 offsets.json
 client.dll.json
 kmbox.json
@@ -12,3 +10,5 @@ leechcore.dll
 FTD3XX.dll
 imgui.ini
 *.log
+debug/
+tests/
