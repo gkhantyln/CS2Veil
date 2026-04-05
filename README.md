@@ -168,6 +168,32 @@ Genel ayarlar, No Flash, Config yönetimi
 
 ---
 
+### RCS — Recoil Control System (Geri Tepme Kontrolü)
+
+| Ayar | Açıklama |
+|------|---------|
+| **RCS Aktif** | Geri tepme kompanzasyonunu açar/kapatır |
+| **RCS Güç** | 0.1–2.0 arası. 1.0 = tam kompanzasyon, 0.5 = yarı |
+
+**Çalışma Prensibi:**
+CS2 her ateş edildiğinde `m_aimPunchAngle` değerini günceller — bu silahın yukarı/yana gitmesini sağlar.
+RCS bu değeri okuyup view angle'dan çıkararak recoil'i otomatik dengeler.
+
+**Aimbot ile ilişkisi:**
+- RCS **aimbot'tan tamamen bağımsız** çalışır
+- Aimbot kapalıyken de aktif olabilir
+- İkisi birlikte kullanılabilir — aimbot hedefi kilitler, RCS spray'i sabitler
+- İlk mermi hariç (shots_fired > 1) devreye girer
+
+**Legit RCS Ayarları:**
+```
+RCS Güç: 0.5 - 0.7  (1.0 çok belirgin, şüphe çeker)
+Aimbot ile: İsteğe bağlı
+Aimbot olmadan: Sadece spray kontrolü için ideal
+```
+
+---
+
 ### Radar
 
 Mini harita üzerinde düşman konumlarını gösterir. Küçük veya büyük boyut seçeneği.
@@ -195,6 +221,15 @@ Ateş Ederken Dur: AÇIK
 Mod: Tuşa Basınca (her zaman modu çok agresif)
 Gecikme: 80-120ms (insan reaksiyon süresi)
 Tuş: Sol ALT veya Yan Tuş
+```
+
+### RCS Legit Ayarları
+
+```
+RCS Güç: 0.5 - 0.7
+Aimbot ile birlikte: Evet (spray + kilitleme)
+Aimbot olmadan: Evet (sadece spray kontrolü)
+Not: 1.0 değeri çok mekanik görünür, 0.6 idealdir
 ```
 
 ### ESP Legit Kullanımı

@@ -47,6 +47,8 @@ class AimConfig:
         self.fake_smooth    = 0.8
         self.auto_shot      = False
         self.ignore_on_shot = True
+        self.rcs_enabled    = False
+        self.rcs_scale      = 1.0
         self.visible_check  = True
         self.show_fov_circle= False
         self.fov_color      = [0.90, 0.90, 0.90, 1.0]

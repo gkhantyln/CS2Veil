@@ -56,6 +56,8 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "auto_shot":          aim_cfg.auto_shot,
             "visible_check":      aim_cfg.visible_check,
             "ignore_on_shot":     aim_cfg.ignore_on_shot,
+            "rcs_enabled":        aim_cfg.rcs_enabled,
+            "rcs_scale":          aim_cfg.rcs_scale,
         },
         "triggerbot": {
             "enabled":            trig_cfg.enabled,
@@ -63,10 +65,7 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "mode":               trig_cfg.mode,
             "delay_ms":           trig_cfg.delay_ms,
         },
-        "radar": {
-            "enabled":            radar_cfg.enabled,
-            "size_type":          radar_cfg.size_type,
-        },
+        "radar": {},  # Kaldirildi
     }
 
     try:
@@ -131,6 +130,8 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     aim_cfg.auto_shot            = a.get("auto_shot",          aim_cfg.auto_shot)
     aim_cfg.visible_check        = a.get("visible_check",      aim_cfg.visible_check)
     aim_cfg.ignore_on_shot       = a.get("ignore_on_shot",     aim_cfg.ignore_on_shot)
+    aim_cfg.rcs_enabled          = a.get("rcs_enabled",        aim_cfg.rcs_enabled)
+    aim_cfg.rcs_scale            = a.get("rcs_scale",          aim_cfg.rcs_scale)
     aim_cfg.apply_hotkey()
 
     t = data.get("triggerbot", {})
@@ -139,11 +140,6 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     trig_cfg.mode                = t.get("mode",               trig_cfg.mode)
     trig_cfg.delay_ms            = t.get("delay_ms",           trig_cfg.delay_ms)
     trig_cfg.apply_hotkey()
-
-    r = data.get("radar", {})
-    radar_cfg.enabled            = r.get("enabled",            radar_cfg.enabled)
-    radar_cfg.size_type          = r.get("size_type",          radar_cfg.size_type)
-    radar_cfg.apply_size()
 
     # Son kullanilan config'i guncelle
     with open(LAST_CFG_FILE, "w") as f:

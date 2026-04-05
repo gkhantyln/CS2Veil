@@ -6,8 +6,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # ---- Init ----
 from core.offsets import offsets; offsets.update()
 from core.process_manager import process_mgr as pm
-if not pm.attach("cs2.exe"):
-    print("[ error ] CS2 bulunamadi!"); sys.exit(1)
+
+# CS2 acilana kadar bekle
+import time as _t
+while True:
+    if pm.attach("cs2.exe"):
+        break
+    print("[ CS2Veil ] cs2.exe bekleniyor...", end="\r")
+    _t.sleep(2.0)
+print()  # Satir temizle
 from core.game import game; game.init_address()
 from core.offsets import offsets as off
 from core.bone import BONEINDEX, BONE_JOINT_SIZE, BONE_CHAINS
@@ -105,8 +112,7 @@ print(f"[ CS2Veil ] Overlay {W}x{H} | INSERT=menu")
 
 # Son kaydedilen config'i yukle
 try:
-    from mods.radar import radar_config as _rc_init
-    if load_last_config(menu_config, aim_config, trigger_config, _rc_init):
+    if load_last_config(menu_config, aim_config, trigger_config, None):
         print("[ config ] Son config yuklendi")
 except Exception as _e:
     print(f"[ config ] Yuklenemedi: {_e}")
@@ -384,14 +390,14 @@ while True:
             _,aim_config.visible_check=imgui.checkbox("Gorunurluk",aim_config.visible_check)
             _,aim_config.ignore_on_shot=imgui.checkbox("Ates Ederken Dur",aim_config.ignore_on_shot)
             imgui.separator()
+            # RCS - Recoil Control System
+            imgui.text("--- Geri Tepme Kontrolu (RCS) ---")
+            _,aim_config.rcs_enabled=imgui.checkbox("RCS Aktif",aim_config.rcs_enabled)
+            if aim_config.rcs_enabled:
+                _,aim_config.rcs_scale=imgui.slider_float("RCS Guc##rcs",aim_config.rcs_scale,0.1,2.0,"%.1f")
+                imgui.text("  1.0 = tam kompanzasyon, 0.5 = yari")
+            imgui.separator()
             imgui.text_colored(f"Aktif Tus: {AIM_HK[aim_config.hotkey_index]}",0.4,1,0.4,1)
-            imgui.end_tab_item()
-
-        if imgui.begin_tab_item("Radar")[0]:
-            from mods.radar import radar_config
-            _,radar_config.enabled=imgui.checkbox("Radari Goster",radar_config.enabled)
-            ch,radar_config.size_type=imgui.combo("Radar Boyutu",radar_config.size_type,["Kucuk","Buyuk"])
-            if ch: radar_config.apply_size()
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Tetik Botu")[0]:
@@ -422,8 +428,7 @@ while True:
             if imgui.button("Kaydet"):
                 name = _cfg_name_buf[0].strip()
                 if name:
-                    from mods.radar import radar_config as _rc
-                    if save_config(name, menu_config, aim_config, trigger_config, _rc):
+                    if save_config(name, menu_config, aim_config, trigger_config, None):
                         _cfg_msg[0] = f"Kaydedildi: {name}.json"
                     else:
                         _cfg_msg[0] = "Kayit hatasi!"
@@ -434,8 +439,7 @@ while True:
             sel = _cfg_selected[0]
             has_sel = 0 <= sel < len(_cfg_files_cur)
             if imgui.button("Yukle") and has_sel:
-                from mods.radar import radar_config as _rc
-                if load_config(_cfg_files_cur[sel], menu_config, aim_config, trigger_config, _rc):
+                if load_config(_cfg_files_cur[sel], menu_config, aim_config, trigger_config, None):
                     _cfg_msg[0] = f"Yuklendi: {_cfg_files_cur[sel]}"
                 else:
                     _cfg_msg[0] = "Yukleme hatasi!"
@@ -672,6 +676,25 @@ while True:
                 # Oto Ates: aim kilitliyken otomatik ates
                 if aim_config.auto_shot:
                     _triggerbot_shoot()
+
+        # RCS - Recoil Control System (aimbot'tan bagimsiz calisir)
+        if aim_config.rcs_enabled and local:
+            lp_addr = local["pawn"]
+            if lp_addr:
+                # m_aimPunchAngle: recoil acisi (pitch, yaw)
+                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
+                if punch_raw and len(punch_raw) >= 8:
+                    punch_pitch, punch_yaw = struct.unpack_from("<ff", punch_raw)
+                    # Sadece ates ediliyorsa uygula (shots_fired > 0)
+                    shots_raw = pm.read_memory(lp_addr + off.iShotsFired, 4)
+                    shots = struct.unpack_from("<I", shots_raw)[0] if shots_raw else 0
+                    if shots > 1:  # Ilk mermi recoil yok
+                        cur_ang = pm.read_vec2(lp_addr + off.angEyeAngles)
+                        # Recoil'i view angle'dan cikar (kompanzasyon)
+                        new_p = cur_ang[0] - punch_pitch * aim_config.rcs_scale
+                        new_y = cur_ang[1] - punch_yaw  * aim_config.rcs_scale
+                        new_p = max(-89.0, min(89.0, new_p))
+                        game.set_view_angle(new_p, new_y)
 
         # Triggerbot - crosshair'daki dusmana ates et
         trig_key = bool(user32.GetAsyncKeyState(trigger_config.hotkey) & 0x8000)
