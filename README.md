@@ -1,5 +1,5 @@
 # CS2Veil — External CS2 Yardımcı Yazılımı
-### github@gkhntyln
+### github@gkhantyln
 
 ---
 
@@ -323,4 +323,4 @@ CS2 güncellemelerinden sonra offset dosyalarını güncelleyin:
 
 ---
 
-*CS2Veil — github@gkhntyln*
+*CS2Veil — github@gkhantyln*

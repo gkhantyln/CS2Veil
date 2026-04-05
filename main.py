@@ -334,7 +334,7 @@ while True:
 
     # ---- MENU ----
     if menu_open:
-        imgui.begin("CS2Veil                    github@gkhntyln", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)
+        imgui.begin("CS2Veil                    github@gkhantyln", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)
         imgui.begin_tab_bar("tabs")
 
         if imgui.begin_tab_item("Gorsel")[0]:
