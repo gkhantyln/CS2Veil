@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+config/
+offsets.json
+client.dll.json
+kmbox.json
+vmm.dll
+leechcore.dll
+FTD3XX.dll
+imgui.ini
+*.log

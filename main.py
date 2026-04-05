@@ -1,0 +1,686 @@
+"""CS2Veil - main.py"""
+import os, sys, time, struct, threading, math, ctypes
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ---- Init ----
+from core.offsets import offsets; offsets.update()
+from core.process_manager import process_mgr as pm
+if not pm.attach("cs2.exe"):
+    print("[ error ] CS2 bulunamadi!"); sys.exit(1)
+from core.game import game; game.init_address()
+from core.offsets import offsets as off
+from core.bone import BONEINDEX, BONE_JOINT_SIZE, BONE_CHAINS
+from mods.aimbot import aim_config, HOTKEY_NAMES as AIM_HK
+from mods.triggerbot import trigger_config, HOTKEY_NAMES as TRIG_HK
+from utils.kmbox import kmbox; kmbox.init_from_config("kmbox.json")
+from ui.menu import menu_config
+from ui.render import draw_health_bar
+from core.bone import BONE_CHAINS
+from utils.config_manager import save_config, load_config, load_last_config, list_configs, delete_config
+os.makedirs("config", exist_ok=True)
+
+import pygame, OpenGL.GL as gl, imgui
+from imgui.integrations.pygame import PygameRenderer
+import win32api, win32con, win32gui
+
+user32 = ctypes.WinDLL("user32")
+dwmapi = ctypes.WinDLL("dwmapi")
+
+class MARGINS(ctypes.Structure):
+    _fields_ = [("l",ctypes.c_int),("r",ctypes.c_int),("t",ctypes.c_int),("b",ctypes.c_int)]
+
+W = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+H = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+game.view.set_screen_size(float(W), float(H))
+
+# ---- Pygame / OpenGL ----
+pygame.init()
+for a,v in [(pygame.GL_ALPHA_SIZE,8),(pygame.GL_RED_SIZE,8),(pygame.GL_GREEN_SIZE,8),
+            (pygame.GL_BLUE_SIZE,8),(pygame.GL_DEPTH_SIZE,0),(pygame.GL_STENCIL_SIZE,0)]:
+    pygame.display.gl_set_attribute(a,v)
+pygame.display.set_mode((W,H), pygame.OPENGL|pygame.DOUBLEBUF|pygame.NOFRAME)
+hwnd = pygame.display.get_wm_info()["window"]
+
+EX_PT = win32con.WS_EX_LAYERED|win32con.WS_EX_TOPMOST|win32con.WS_EX_TRANSPARENT|win32con.WS_EX_NOACTIVATE
+EX_MN = win32con.WS_EX_LAYERED|win32con.WS_EX_TOPMOST
+win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, EX_PT)
+dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(MARGINS(-1,-1,-1,-1)))
+win32gui.SetLayeredWindowAttributes(hwnd, 0x000000, 0, win32con.LWA_COLORKEY)
+win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0,0,W,H, win32con.SWP_SHOWWINDOW)
+
+gl.glClearColor(0,0,0,0)
+gl.glEnable(gl.GL_BLEND)
+gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
+imgui.create_context()
+renderer = PygameRenderer()
+io = imgui.get_io(); io.display_size=(W,H)
+
+for fn in ("segoeui.ttf","tahoma.ttf","arial.ttf"):
+    fp=os.path.join(os.environ.get("WINDIR","C:/Windows"),"Fonts",fn)
+    if os.path.exists(fp):
+        try:
+            gr=imgui.GlyphRanges([0x0020,0x00FF,0x011E,0x011F,0x0130,0x0131,0x015E,0x015F,0])
+            io.fonts.add_font_from_file_ttf(fp,15.0,glyph_ranges=gr); print(f"[ font ] {fn}"); break
+        except Exception: pass
+else: io.fonts.add_font_default()
+
+s=imgui.get_style(); s.window_rounding=5; s.frame_rounding=4; s.grab_rounding=3
+c=s.colors
+c[imgui.COLOR_TEXT]=(0.80,0.80,0.83,1); c[imgui.COLOR_WINDOW_BACKGROUND]=(0.07,0.06,0.08,0.95)
+c[imgui.COLOR_FRAME_BACKGROUND]=(0.10,0.09,0.12,1); c[imgui.COLOR_BUTTON]=(0.10,0.09,0.12,1)
+c[imgui.COLOR_TITLE_BACKGROUND]=(0.10,0.09,0.12,1); c[imgui.COLOR_TITLE_BACKGROUND_ACTIVE]=(0.07,0.07,0.09,1)
+c[imgui.COLOR_HEADER]=(0.10,0.09,0.12,1); c[imgui.COLOR_CHECK_MARK]=(0.80,0.80,0.83,0.31)
+c[imgui.COLOR_SLIDER_GRAB]=(0.80,0.80,0.83,0.31); c[imgui.COLOR_BORDER]=(0.80,0.80,0.83,0.88)
+c[imgui.COLOR_FRAME_BACKGROUND_HOVERED]=(0.24,0.23,0.29,1); c[imgui.COLOR_FRAME_BACKGROUND_ACTIVE]=(0.56,0.56,0.58,1)
+c[imgui.COLOR_BUTTON_HOVERED]=(0.24,0.23,0.29,1); c[imgui.COLOR_BUTTON_ACTIVE]=(0.56,0.56,0.58,1)
+c[imgui.COLOR_HEADER_HOVERED]=(0.56,0.56,0.58,1); c[imgui.COLOR_HEADER_ACTIVE]=(0.06,0.05,0.07,1)
+c[imgui.COLOR_SLIDER_GRAB_ACTIVE]=(0.06,0.05,0.07,1)
+
+# CS2 penceresini bul
+def _find_cs2():
+    r=[]
+    def cb(h,_):
+        if win32gui.IsWindowVisible(h):
+            t=win32gui.GetWindowText(h)
+            if "counter-strike" in t.lower(): r.append(h)
+        return True
+    win32gui.EnumWindows(cb,None)
+    return r[0] if r else None
+
+cs2h = _find_cs2()
+if cs2h:
+    rx,ry,rx2,ry2=win32gui.GetWindowRect(cs2h)
+    rw,rh=rx2-rx,ry2-ry
+    if rw>0 and rh>0:
+        W,H=rw,rh; game.view.set_screen_size(float(W),float(H)); io.display_size=(W,H)
+        win32gui.SetWindowPos(hwnd,win32con.HWND_TOPMOST,rx,ry,rw,rh,win32con.SWP_SHOWWINDOW)
+        print(f"[ info ] CS2: {rx},{ry} {rw}x{rh}")
+    win32gui.SetWindowPos(cs2h,win32con.HWND_NOTOPMOST,0,0,0,0,win32con.SWP_NOMOVE|win32con.SWP_NOSIZE)
+else:
+    print("[ warn ] CS2 penceresi bulunamadi")
+
+print(f"[ CS2Veil ] Overlay {W}x{H} | INSERT=menu")
+
+# Son kaydedilen config'i yukle
+try:
+    from mods.radar import radar_config as _rc_init
+    if load_last_config(menu_config, aim_config, trigger_config, _rc_init):
+        print("[ config ] Son config yuklendi")
+except Exception as _e:
+    print(f"[ config ] Yuklenemedi: {_e}")
+
+# ---- Entity thread ----
+_ents, _local, _lock = [], None, threading.Lock()
+
+def _read_weapon(pawn):
+    # pClippingWeapon -> +0x10 -> +0x20 -> weapon name string
+    p1 = pm.read_u64(pawn + off.pClippingWeapon)
+    if not p1 or p1 > 0x7FFFFFFFFFFF: return ""
+    p2 = pm.read_u64(p1 + 0x10)
+    if not p2 or p2 > 0x7FFFFFFFFFFF: return ""
+    p3 = pm.read_u64(p2 + 0x20)
+    if not p3 or p3 > 0x7FFFFFFFFFFF: return ""
+    r = pm.read_memory(p3, 32)
+    if not r: return ""
+    e = r.find(b'\x00'); n = r[:e].decode(errors="ignore") if e != -1 else ""
+    i = n.find("_"); return n[i+1:] if i != -1 else n
+
+def _read_bones(pawn):
+    sc=pm.read_u64(pawn+off.GameSceneNode)
+    if not sc: return []
+    ba=pm.read_u64(sc+off.BoneArray)
+    if not ba: return []
+    # Sadece kullanilan bone'lari oku: max index 27 (ankle_R)
+    # 28 bone * 32 byte = 896 byte (30*32=960 yerine)
+    r=pm.read_memory(ba, 28 * BONE_JOINT_SIZE)
+    if not r: return []
+    out=[]
+    for i in range(28):
+        o=i*BONE_JOINT_SIZE
+        if o+12>len(r): break
+        x,y,z=struct.unpack_from("<fff",r,o)
+        out.append({"pos":(x,y,z),"screen":None})
+    return out
+
+def _entity_loop():
+    global _ents,_local
+    last_entry_update = 0
+    last_weapon_update = 0
+    _weapon_cache = {}  # pawn_addr -> weapon_name cache
+    while True:
+        try:
+            # Matrix her iterasyonda guncelle (entity thread'de)
+            game.update_matrix()
+            now = time.monotonic()
+
+            # Entity list entry her saniye guncelle
+            if now - last_entry_update > 1.0:
+                game.update_entity_list_entry()
+                last_entry_update = now
+            ges=pm.read_u64(game.address.entity_list)
+            base=game.address.entity_list_entry
+            lc=pm.read_u64(game.address.local_controller)
+            lp=pm.read_u64(game.address.local_pawn)
+            if not all([ges,base,lc,lp]):
+                # entry_list_entry 0 ise hemen guncelle
+                if not base:
+                    game.update_entity_list_entry()
+                    last_entry_update = time.monotonic()
+                time.sleep(0.05); continue
+            cs=pm.read_u64(lp+off.CameraServices)
+            loc={"ctrl":lc,"pawn":lp,
+                 "team":pm.read_i32(lc+off.TeamID),
+                 "hp":pm.read_i32(lp+off.CurrentHealth),
+                 "pos":pm.read_vec3(lp+off.Pos),
+                 "ang":pm.read_vec2(lp+off.angEyeAngles),
+                 "cam":pm.read_vec3(lp+off.vecLastClipCameraPos),
+                 "fov":pm.read_i32(cs+off.iFovStart) if cs else 90,
+                 "weapon":_read_weapon(lp),"idx":0}
+            tmp=[]
+            for ci in range(4):
+                cp=pm.read_u64(base+ci*0x8)
+                if not cp or cp>0x7FFFFFFFFFFF or cp<0x10000: continue
+                for ei in range(512):
+                    ctrl=pm.read_u64(cp+ei*0x8)
+                    if not ctrl or ctrl>0x7FFFFFFFFFFF or ctrl<0x10000: continue
+                    if ctrl==lc: loc["idx"]=ci*512+ei; continue
+                    if pm.read_i32(ctrl+off.IsAlive)!=1: continue
+                    nr=pm.read_memory(ctrl+off.iszPlayerName,32)
+                    if not nr: continue
+                    e2=nr.find(b'\x00'); name=nr[:e2].decode(errors="ignore") if e2!=-1 else ""
+                    if not name: continue
+                    team=pm.read_i32(ctrl+off.TeamID)
+                    ph=pm.read_u32(ctrl+off.PlayerPawn)
+                    if not ph: continue
+                    c2=(ph&0x7FFF)>>9; e3=ph&0x1FF
+                    ch=pm.read_u64(ges+0x10+8*c2)
+                    if not ch: continue
+                    pawn=pm.read_u64(ch+0x70*e3)
+                    if not pawn or pawn>0x7FFFFFFFFFFF or pawn<0x10000: continue
+                    hp=pm.read_i32(pawn+off.CurrentHealth)
+                    if hp<=0: continue
+                    pos=pm.read_vec3(pawn+off.Pos)
+                    bones=_read_bones(pawn)
+                    # Weapon name: cache ile seyrek oku (500ms)
+                    wpn = _weapon_cache.get(pawn, "")
+                    if now - last_weapon_update > 0.5:
+                        wpn = _read_weapon(pawn)
+                        _weapon_cache[pawn] = wpn
+                    foot=None
+                    for ai in [24,27]:
+                        if len(bones)>ai and bones[ai]["screen"]: foot=bones[ai]["screen"]; break
+                    if not foot: foot=game.view.world_to_screen(pos)
+                    tmp.append({"ctrl":ctrl,"pawn":pawn,"name":name,"team":team,"hp":hp,
+                                "pos":pos,"ang":pm.read_vec2(pawn+off.angEyeAngles),
+                                "weapon":wpn,"bones":bones,"foot":foot})
+            with _lock: _ents=tmp; _local=loc
+            if now - last_weapon_update > 0.5:
+                last_weapon_update = now
+
+            # No Flash: flash duration'i sifirla veya sinirla
+            if menu_config.no_flash:
+                # Tamamen kapat
+                pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", 0.0))
+            elif menu_config.flash_max_alpha < 255:
+                # Flash alpha sinirla: flFlashDuration max degerini kisalt
+                cur_flash = pm.read_float(lp + off.flFlashDuration) if hasattr(pm, 'read_float') else 0
+                # flash_max_alpha: 255=hic, 0=tam -> duration max = (255-alpha)/255 * 3.5
+                max_dur = (255 - menu_config.flash_max_alpha) / 255.0 * 3.5
+                raw_flash = pm.read_memory(lp + off.flFlashDuration, 4)
+                if raw_flash:
+                    cur = struct.unpack_from("<f", raw_flash)[0]
+                    if cur > max_dur:
+                        pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", max_dur))
+        except Exception: pass
+        time.sleep(0.016)  # ~60fps entity update
+
+threading.Thread(target=_entity_loop,daemon=True).start()
+
+# ---- Config UI state ----
+_cfg_name_buf   = [""]
+_cfg_selected   = [-1]
+_cfg_msg        = [""]
+_cfg_msg_time   = [0.0]
+
+# ---- Triggerbot yardimci fonksiyonlar ----
+import ctypes.wintypes as _wt
+
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [("dx",_wt.LONG),("dy",_wt.LONG),("mouseData",_wt.DWORD),
+                ("dwFlags",_wt.DWORD),("time",_wt.DWORD),
+                ("dwExtraInfo",ctypes.POINTER(ctypes.c_ulong))]
+class _INPUT_UNION(ctypes.Union):
+    _fields_ = [("mi",_MOUSEINPUT)]
+class _INPUT(ctypes.Structure):
+    _fields_ = [("type",_wt.DWORD),("_input",_INPUT_UNION)]
+
+_last_shot_time = 0.0
+
+def _do_click():
+    """Sol tik - SendInput (CS2 mouse button icin raw input kullanmaz)."""
+    for flag in (0x0002, 0x0004):  # LEFTDOWN, LEFTUP
+        inp = _INPUT(); inp.type = 0
+        inp._input.mi.dwFlags = flag
+        user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(_INPUT))
+
+def _triggerbot_shoot():
+    """Oto ates - gecikme kontrollu."""
+    global _last_shot_time
+    now = time.monotonic()
+    if now - _last_shot_time < trigger_config.delay_ms / 1000.0:
+        return
+    if bool(user32.GetAsyncKeyState(win32con.VK_LBUTTON) & 0x8000):
+        return  # Zaten basili
+    _do_click()
+    _last_shot_time = now
+
+def _triggerbot_check(local, ents):
+    """
+    Crosshair'daki entity'yi bul:
+    Ekran merkezine en yakin entity'nin head/neck bone'u
+    merkeze cok yakinsa (triggerbot esigi) ates et.
+    """
+    global _last_shot_time
+    now = time.monotonic()
+    if now - _last_shot_time < trigger_config.delay_ms / 1000.0:
+        return
+    if bool(user32.GetAsyncKeyState(win32con.VK_LBUTTON) & 0x8000):
+        return
+
+    lt = local["team"]
+    cx, cy = W/2, H/2
+    # Crosshair esigi: ekranin %2'si kadar piksel
+    threshold = W * 0.02
+
+    for ent in ents:
+        if menu_config.team_check and lt >= 2 and ent["team"] == lt:
+            continue
+        bones = ent["bones"]
+        # Head veya neck bone ekran merkezine yakin mi?
+        for bidx in [BONEINDEX.head, BONEINDEX.neck_0]:
+            if len(bones) <= bidx or not bones[bidx]["screen"]:
+                continue
+            sx, sy = bones[bidx]["screen"]
+            dist = math.sqrt((sx-cx)**2 + (sy-cy)**2)
+            if dist < threshold:
+                _do_click()
+                _last_shot_time = now
+                return
+
+# ---- Main loop ----
+clock=pygame.time.Clock(); menu_open=False; mk_last=False; mk_t=0.0; menu_was=False
+
+while True:
+    mk=bool(user32.GetAsyncKeyState(win32con.VK_INSERT)&0x8000)
+    now=time.monotonic()
+    if mk and not mk_last and now-mk_t>0.15:
+        menu_open=not menu_open; mk_t=now
+    mk_last=mk
+    if menu_open!=menu_was:
+        win32gui.SetWindowLong(hwnd,win32con.GWL_EXSTYLE,EX_MN if menu_open else EX_PT)
+        menu_was=menu_open
+    if menu_open:
+        mx,my=win32api.GetCursorPos()
+        io.mouse_pos=(float(mx),float(my))
+        io.mouse_down[0]=bool(user32.GetAsyncKeyState(win32con.VK_LBUTTON)&0x8000)
+        io.mouse_down[1]=bool(user32.GetAsyncKeyState(win32con.VK_RBUTTON)&0x8000)
+    for ev in pygame.event.get():
+        if menu_open: renderer.process_event(ev)
+
+    gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+    imgui.new_frame()
+
+    # ---- MENU ----
+    if menu_open:
+        imgui.begin("CS2Veil                    github@gkhntyln", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)
+        imgui.begin_tab_bar("tabs")
+
+        if imgui.begin_tab_item("Gorsel")[0]:
+            _,menu_config.show_box_esp    =imgui.checkbox("Kutu ESP",        menu_config.show_box_esp)
+            imgui.same_line()
+            ch,v=imgui.color_edit4("Kutu Rengi##b",*menu_config.box_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
+            if ch: menu_config.box_color=list(v)
+            _,menu_config.box_type        =imgui.combo("Kutu Tipi",          menu_config.box_type,["Normal","Ince"])
+            _,menu_config.show_bone_esp   =imgui.checkbox("Iskelet ESP",     menu_config.show_bone_esp)
+            imgui.same_line()
+            ch,v=imgui.color_edit4("Iskelet Rengi##sk",*menu_config.bone_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
+            if ch: menu_config.bone_color=list(v)
+            _,menu_config.show_health_bar =imgui.checkbox("Can Bari",        menu_config.show_health_bar)
+            _,menu_config.health_bar_type =imgui.combo("Can Bari Konumu",    menu_config.health_bar_type,["Sol","Ust","Sag","Alt"])
+            _,menu_config.show_player_name=imgui.checkbox("Oyuncu Adi",      menu_config.show_player_name)
+            if menu_config.show_player_name:
+                _,menu_config.player_name_pos =imgui.combo("Konum##name",    menu_config.player_name_pos,["Ust","Alt"])
+                _,menu_config.player_name_size=imgui.slider_int("Boyut##name",menu_config.player_name_size,8,24)
+            _,menu_config.show_distance   =imgui.checkbox("Mesafe",          menu_config.show_distance)
+            _,menu_config.show_eye_ray    =imgui.checkbox("Bakis Cizgisi",   menu_config.show_eye_ray)
+            imgui.same_line()
+            ch,v=imgui.color_edit4("Bakis Rengi##er",*menu_config.eye_ray_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
+            if ch: menu_config.eye_ray_color=list(v)
+            _,menu_config.show_line_to_enemy=imgui.checkbox("Dusmana Cizgi",menu_config.show_line_to_enemy)
+            imgui.same_line()
+            ch,v=imgui.color_edit4("Cizgi Rengi##le",*menu_config.line_to_enemy_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
+            if ch: menu_config.line_to_enemy_color=list(v)
+            imgui.separator()
+            _,menu_config.esp_fov_only=imgui.checkbox("Sadece FOV icindekiler (FPS+)",menu_config.esp_fov_only)
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Nishan Botu")[0]:
+            _,aim_config.enabled=imgui.checkbox("Aktif##aim",aim_config.enabled)
+            ch,aim_config.hotkey_index=imgui.combo("Tus##aim",aim_config.hotkey_index,AIM_HK)
+            if ch: aim_config.apply_hotkey()
+            _,aim_config.fov=imgui.slider_float("FOV",aim_config.fov,0.1,89.0,"%.1f")
+            _,aim_config.show_fov_circle=imgui.checkbox("FOV Cemberi",aim_config.show_fov_circle)
+            imgui.same_line()
+            ch,v=imgui.color_edit4("FOV Rengi##fc",*aim_config.fov_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
+            if ch: aim_config.fov_color=list(v)
+            _,aim_config.smooth=imgui.slider_float("Yumusatma",aim_config.smooth,0.0,0.9,"%.1f")
+            _,aim_config.position=imgui.combo("Hedef (Normal)",aim_config.position,["Kafa","Boyun","Govde"])
+            _,aim_config.position_pistol=imgui.combo("Hedef (Tabanca)",aim_config.position_pistol,["Kafa","Boyun","Govde"])
+            _,aim_config.position_sniper=imgui.combo("Hedef (Keskin)",aim_config.position_sniper,["Kafa","Boyun","Govde"])
+            _,aim_config.auto_shot=imgui.checkbox("Oto Ates",aim_config.auto_shot)
+            imgui.same_line()
+            _,aim_config.visible_check=imgui.checkbox("Gorunurluk",aim_config.visible_check)
+            _,aim_config.ignore_on_shot=imgui.checkbox("Ates Ederken Dur",aim_config.ignore_on_shot)
+            imgui.separator()
+            imgui.text_colored(f"Aktif Tus: {AIM_HK[aim_config.hotkey_index]}",0.4,1,0.4,1)
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Radar")[0]:
+            from mods.radar import radar_config
+            _,radar_config.enabled=imgui.checkbox("Radari Goster",radar_config.enabled)
+            ch,radar_config.size_type=imgui.combo("Radar Boyutu",radar_config.size_type,["Kucuk","Buyuk"])
+            if ch: radar_config.apply_size()
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Tetik Botu")[0]:
+            _,trigger_config.enabled=imgui.checkbox("Aktif##trig",trigger_config.enabled)
+            ch,trigger_config.hotkey_index=imgui.combo("Tus##trig",trigger_config.hotkey_index,TRIG_HK)
+            if ch: trigger_config.apply_hotkey()
+            _,trigger_config.mode=imgui.combo("Mod",trigger_config.mode,["Tusa Basinca","Her Zaman"])
+            _,trigger_config.delay_ms=imgui.slider_int("Gecikme(ms)",trigger_config.delay_ms,0,250)
+            imgui.separator()
+            imgui.text_colored(f"Aktif Tus: {TRIG_HK[trigger_config.hotkey_index]}",0.4,1,0.4,1)
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Ayarlar")[0]:
+            _,menu_config.team_check=imgui.checkbox("Takim Kontrolu",menu_config.team_check)
+            imgui.separator()
+            _,menu_config.no_flash=imgui.checkbox("No Flash",menu_config.no_flash)
+            if not menu_config.no_flash:
+                imgui.same_line()
+                imgui.text("  Flash Seviyesi:")
+                _,menu_config.flash_max_alpha=imgui.slider_int("##flash",menu_config.flash_max_alpha,0,255)
+                imgui.text("  (255=hic flash, 0=tam flash)")
+            imgui.separator()
+            # Config kayit/yukle
+            imgui.text("Config Yonetimi:")
+            _cfg_files_cur = list_configs()
+            changed, _cfg_name_buf[0] = imgui.input_text("Config Adi", _cfg_name_buf[0], 64)
+            imgui.same_line()
+            if imgui.button("Kaydet"):
+                name = _cfg_name_buf[0].strip()
+                if name:
+                    from mods.radar import radar_config as _rc
+                    if save_config(name, menu_config, aim_config, trigger_config, _rc):
+                        _cfg_msg[0] = f"Kaydedildi: {name}.json"
+                    else:
+                        _cfg_msg[0] = "Kayit hatasi!"
+                    _cfg_msg_time[0] = time.monotonic()
+            for i, fname in enumerate(_cfg_files_cur):
+                clicked, _ = imgui.selectable(fname, _cfg_selected[0] == i)
+                if clicked: _cfg_selected[0] = i
+            sel = _cfg_selected[0]
+            has_sel = 0 <= sel < len(_cfg_files_cur)
+            if imgui.button("Yukle") and has_sel:
+                from mods.radar import radar_config as _rc
+                if load_config(_cfg_files_cur[sel], menu_config, aim_config, trigger_config, _rc):
+                    _cfg_msg[0] = f"Yuklendi: {_cfg_files_cur[sel]}"
+                else:
+                    _cfg_msg[0] = "Yukleme hatasi!"
+                _cfg_msg_time[0] = time.monotonic()
+            imgui.same_line()
+            if imgui.button("Sil") and has_sel:
+                if delete_config(_cfg_files_cur[sel]):
+                    _cfg_msg[0] = f"Silindi: {_cfg_files_cur[sel]}"
+                    _cfg_selected[0] = -1
+                _cfg_msg_time[0] = time.monotonic()
+            if _cfg_msg[0] and time.monotonic() - _cfg_msg_time[0] < 2.0:
+                imgui.text_colored(_cfg_msg[0], 0.4, 1.0, 0.4, 1.0)
+            imgui.separator()
+            imgui.text("INSERT = Menu ac/kapat")
+            if imgui.button("Programi Kapat"): sys.exit(0)
+            imgui.end_tab_item()
+
+        imgui.end_tab_bar()
+        imgui.end()
+
+    # ---- ESP ----
+    dl=imgui.get_background_draw_list()
+    with _lock: ents=list(_ents); local=_local
+
+    # HP'ye gore renk: tam HP'de kullanicinin secimi, dusunce kirmiziya kayar
+    def hp_color(hp, base_color, alpha=1.0):
+        t = max(0.0, min(1.0, hp / 100.0))
+        br, bg, bb = base_color[0], base_color[1], base_color[2]
+        # t=1 -> base_color, t=0 -> kirmizi (1,0,0)
+        r = br * t + 1.0 * (1.0 - t)
+        g = bg * t + 0.0 * (1.0 - t)
+        b = bb * t + 0.0 * (1.0 - t)
+        return imgui.get_color_u32_rgba(r, g, b, alpha)
+
+    if local:
+        # Durum gostergesi
+        if len(ents) > 0:
+            dl.add_text(10, 10, imgui.get_color_u32_rgba(0, 1, 0, 1),
+                        f"CS2Veil  |  Aktif  |  Entity: {len(ents)}")
+        else:
+            dl.add_text(10, 10, imgui.get_color_u32_rgba(1, 0, 0, 1),
+                        "CS2Veil  |  Deaktif")
+        lt=local["team"]
+        ak=bool(user32.GetAsyncKeyState(aim_config.hotkey)&0x8000)
+        aim_pos=None; max_d=float('inf')
+
+        for ent in ents:
+            team=ent["team"]; hp=ent["hp"]
+            name=ent["name"]; bones=ent["bones"]; pos=ent["pos"]
+
+            if menu_config.team_check and lt>=2 and team==lt: continue
+
+            # Once sadece pos ile on eleme - ekranda mi?
+            quick_screen = game.view.world_to_screen(pos)
+            if not quick_screen: continue
+            qx, qy = quick_screen
+            if not(0 <= qx <= W and 0 <= qy <= H): continue
+
+            # FOV filtresi
+            if menu_config.esp_fov_only:
+                cx_fov, cy_fov = W/2, H/2
+                fov_r  = math.tan(aim_config.fov/180*math.pi/2)
+                pawn_r = math.tan(max(local["fov"],1)/180*math.pi/2)
+                fov_px = fov_r / pawn_r * W
+                if math.sqrt((qx-cx_fov)**2 + (qy-cy_fov)**2) > fov_px:
+                    continue
+
+            # Ekrandaysa kemikleri hesapla (sadece gorunenler icin)
+            for b in bones:
+                b["screen"] = game.view.world_to_screen(b["pos"])
+
+            foot = None
+            for ai in [24,27]:
+                if len(bones)>ai and bones[ai]["screen"]: foot=bones[ai]["screen"]; break
+            if not foot: foot=game.view.world_to_screen(pos)
+            if not foot: continue
+            fx,fy = foot
+
+            head=bones[BONEINDEX.head]["screen"] if len(bones)>BONEINDEX.head and bones[BONEINDEX.head]["screen"] else None
+            ankle=None
+            for ai in [24,27]:
+                if len(bones)>ai and bones[ai]["screen"]: ankle=bones[ai]["screen"]; break
+
+            if not(-W<fx<W*2 and -H<fy<H*2): continue
+
+            if head and ankle and ankle[1]>head[1]:
+                bh=ankle[1]-head[1]; bw=bh*0.40; cx2=(head[0]+ankle[0])/2
+                x1,y1,x2,y2=cx2-bw/2,head[1]-bh*0.05,cx2+bw/2,ankle[1]+bh*0.05
+            elif head and head[1]<fy:
+                bh=max(fy-head[1],10); cx2=(fx+head[0])/2
+                x1,y1,x2,y2=cx2-bh*0.20,head[1],cx2+bh*0.20,fy
+            else:
+                x1,y1,x2,y2=fx-18,fy-80,fx+18,fy
+
+            x1=max(x1,-10);y1=max(y1,-10);x2=min(x2,W+10);y2=min(y2,H+10)
+            if x2-x1<3 or y2-y1<3: continue
+            bh=max(y2-y1,10)
+
+            if head:
+                d=math.sqrt((head[0]-W/2)**2+(head[1]-H/2)**2)
+                if d<max_d:
+                    max_d=d
+                    # Secili hitbox'a gore hedef bone
+                    _bone_map = [BONEINDEX.head, BONEINDEX.neck_0, BONEINDEX.spine_1]
+                    _wpn = ent.get("weapon","")
+                    from mods.aimbot import PISTOLS, SNIPERS
+                    if _wpn in PISTOLS:
+                        _bidx = _bone_map[min(aim_config.position_pistol, 2)]
+                    elif _wpn in SNIPERS:
+                        _bidx = _bone_map[min(aim_config.position_sniper, 2)]
+                    else:
+                        _bidx = _bone_map[min(aim_config.position, 2)]
+                    if len(bones) > _bidx and bones[_bidx]["pos"]:
+                        ap = list(bones[_bidx]["pos"])
+                        if _bidx == BONEINDEX.head:
+                            ap[2] -= 1.0
+                        aim_pos = tuple(ap)
+
+            if menu_config.show_box_esp:
+                dl.add_rect(x1,y1,x2,y2, hp_color(hp, menu_config.box_color), 0, 0, 1.5)
+
+            if menu_config.show_health_bar:
+                bar_w = 3; bar_h = 3
+                t = hp/100.0
+                if t > 0.5: hcr,hcg = (1.0-t)*2, 1.0
+                else:       hcr,hcg = 1.0, t*2
+                bar_col = imgui.get_color_u32_rgba(hcr,hcg,0,0.9)
+                bg_col  = imgui.get_color_u32_rgba(0.15,0.15,0.15,0.8)
+                fr_col  = imgui.get_color_u32_rgba(0,0,0,0.5)
+                box_w   = x2 - x1
+
+                if menu_config.health_bar_type == 0:    # Sol - dikey
+                    bx = x1 - bar_w - 2
+                    dl.add_rect_filled(bx, y1, bx+bar_w, y2, bg_col, 1)
+                    dl.add_rect_filled(bx, y2-bh*t, bx+bar_w, y2, bar_col, 1)
+                    dl.add_rect(bx, y1, bx+bar_w, y2, fr_col, 1, 0, 0.5)
+
+                elif menu_config.health_bar_type == 1:  # Ust - yatay (kutu genisligi)
+                    by = y1 - bar_h - 2
+                    dl.add_rect_filled(x1, by, x1+box_w, by+bar_h, bg_col, 1)
+                    dl.add_rect_filled(x1, by, x1+box_w*t, by+bar_h, bar_col, 1)
+                    dl.add_rect(x1, by, x1+box_w, by+bar_h, fr_col, 1, 0, 0.5)
+
+                elif menu_config.health_bar_type == 2:  # Sag - dikey
+                    bx = x2 + 2
+                    dl.add_rect_filled(bx, y1, bx+bar_w, y2, bg_col, 1)
+                    dl.add_rect_filled(bx, y2-bh*t, bx+bar_w, y2, bar_col, 1)
+                    dl.add_rect(bx, y1, bx+bar_w, y2, fr_col, 1, 0, 0.5)
+
+                elif menu_config.health_bar_type == 3:  # Alt - yatay (kutu genisligi)
+                    by = y2 + 2
+                    dl.add_rect_filled(x1, by, x1+box_w, by+bar_h, bg_col, 1)
+                    dl.add_rect_filled(x1, by, x1+box_w*t, by+bar_h, bar_col, 1)
+                    dl.add_rect(x1, by, x1+box_w, by+bar_h, fr_col, 1, 0, 0.5)
+
+            if menu_config.show_bone_esp:
+                bc = hp_color(hp, menu_config.bone_color, 0.9)
+                for chain in BONE_CHAINS:
+                    prev=None
+                    for idx in chain:
+                        if idx>=len(bones): continue
+                        cur=bones[idx]
+                        if prev and prev["screen"] and cur["screen"]:
+                            ps,cs2=prev["screen"],cur["screen"]
+                            if all(abs(v)<W*3 for v in [ps[0],ps[1],cs2[0],cs2[1]]):
+                                dl.add_line(ps[0],ps[1],cs2[0],cs2[1],bc,1.5)
+                        prev=cur
+
+            if menu_config.show_eye_ray and len(bones)>BONEINDEX.head and bones[BONEINDEX.head]["screen"]:
+                hb=bones[BONEINDEX.head]; ang=ent["ang"]
+                p,y=ang[0]*math.pi/180,ang[1]*math.pi/180
+                ll=math.cos(p)*50; hx,hy,hz=hb["pos"]
+                end=game.view.world_to_screen((hx+math.cos(y)*ll,hy+math.sin(y)*ll,hz-math.sin(p)*50))
+                if end and hb["screen"]:
+                    dl.add_line(hb["screen"][0],hb["screen"][1],end[0],end[1],
+                                imgui.get_color_u32_rgba(*menu_config.eye_ray_color),1.3)
+
+            if menu_config.show_line_to_enemy:
+                dl.add_line(fx,y1,W/2,0,imgui.get_color_u32_rgba(*menu_config.line_to_enemy_color),1.2)
+
+            if menu_config.show_player_name:
+                sz = menu_config.player_name_size
+                # Kutu ortasina hizala (her karakter ~sz*0.5 px genislik)
+                name_x = x1 + (x2 - x1) / 2 - len(name) * sz * 0.25
+                if menu_config.player_name_pos == 0:  # Ust
+                    name_y = y1 - sz - 2
+                else:  # Alt
+                    name_y = y2 + 2
+                dl.add_text(name_x, name_y, imgui.get_color_u32_rgba(1,1,1,1), name)
+
+            if menu_config.show_distance:
+                lx,ly,lz=local["pos"]; ex2,ey,ez=pos
+                dm=int(math.sqrt((ex2-lx)**2+(ey-ly)**2+(ez-lz)**2)/100)
+                dl.add_text(x2+4,y1,imgui.get_color_u32_rgba(1,1,1,1),f"{dm}m")
+
+        if aim_config.show_fov_circle:
+            fr=math.tan(aim_config.fov/180*math.pi/2)
+            pr=math.tan(max(local["fov"],1)/180*math.pi/2)
+            dl.add_circle(W/2,H/2,fr/pr*W,imgui.get_color_u32_rgba(*aim_config.fov_color),64,1.0)
+
+        if aim_config.enabled and ak and aim_pos:
+            lx,ly,lz=local["cam"]; ax,ay,az=aim_pos
+            dx,dy,dz=ax-lx,ay-ly,az-lz
+            d2=math.sqrt(dx*dx+dy*dy)
+            if d2 < 0.001: d2=0.001
+
+            # Hedef acilari hesapla
+            target_yaw   = math.atan2(dy,dx)*57.295779513
+            target_pitch = -math.atan2(dz,d2)*57.295779513
+
+            # Mevcut acidan fark
+            cur_pitch, cur_yaw = local["ang"]
+            delta_yaw   = target_yaw   - cur_yaw
+            delta_pitch = target_pitch - cur_pitch
+
+            # Yaw normalizasyonu (-180 ile 180 arasi)
+            while delta_yaw >  180: delta_yaw  -= 360
+            while delta_yaw < -180: delta_yaw  += 360
+
+            # FOV kontrolu (derece cinsinden)
+            norm = math.sqrt(delta_yaw**2 + delta_pitch**2)
+            if norm < aim_config.fov:
+                # Smooth uygula
+                smooth = max(aim_config.smooth, 0.05)
+                new_yaw   = cur_yaw   + delta_yaw   * (1.0 - smooth)
+                new_pitch = cur_pitch + delta_pitch * (1.0 - smooth)
+
+                # Pitch sinirla (-89 ile 89)
+                new_pitch = max(-89.0, min(89.0, new_pitch))
+
+                # Direkt view angle yaz - raw input bypass
+                game.set_view_angle(new_pitch, new_yaw)
+
+                # Oto Ates: aim kilitliyken otomatik ates
+                if aim_config.auto_shot:
+                    _triggerbot_shoot()
+
+        # Triggerbot - crosshair'daki dusmana ates et
+        trig_key = bool(user32.GetAsyncKeyState(trigger_config.hotkey) & 0x8000)
+        if trigger_config.enabled:
+            if trigger_config.mode == 1 or (trigger_config.mode == 0 and trig_key):
+                _triggerbot_check(local, ents)
+
+    imgui.render()
+    dd=imgui.get_draw_data()
+    if dd.valid: renderer.render(dd)
+    pygame.display.flip()
+    clock.tick(60)  # Overlay icin 60fps yeterli
