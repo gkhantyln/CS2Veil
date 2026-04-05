@@ -97,9 +97,6 @@ ESP görsel ayarları
 ### 🎯 Nishan Botu Sekmesi
 Aimbot ayarları
 
-### 📡 Radar Sekmesi
-Mini harita radar
-
 ### ⚡ Tetik Botu Sekmesi
 Otomatik ateş sistemi
 
@@ -194,11 +191,6 @@ Aimbot olmadan: Sadece spray kontrolü için ideal
 
 ---
 
-### Radar
-
-Mini harita üzerinde düşman konumlarını gösterir. Küçük veya büyük boyut seçeneği.
-
----
 
 ## Legit Kullanım Rehberi
 
@@ -334,7 +326,7 @@ CS2_Python/
 ├── client.dll.json      ← CS2 client offset'leri (güncel tutun)
 ├── config/              ← Kayıtlı config dosyaları
 ├── core/                ← Bellek okuma modülleri
-├── mods/                ← Aimbot, Triggerbot, Radar
+├── mods/                ← Aimbot, Triggerbot
 ├── ui/                  ← Arayüz
 └── utils/               ← Yardımcı araçlar
 ```
