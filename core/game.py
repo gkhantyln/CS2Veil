@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from .view import CView
 
+_S_F16 = struct.Struct("<16f")
+
 
 @dataclass
 class GameAddresses:
@@ -69,7 +71,7 @@ class CGame:
         raw = pm.read_memory(self.address.matrix, 64)
         if not raw:
             return False
-        flat = struct.unpack_from("<16f", raw)
+        flat = _S_F16.unpack_from(raw)
         with self.view._matrix_lock:
             for row in range(4):
                 for col in range(4):

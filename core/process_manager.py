@@ -54,6 +54,13 @@ class ProcessManager:
     def __init__(self):
         self._handle: Optional[wt.HANDLE] = None
         self.pid: int = 0
+        # Pre-allocated reusable buffers — her read_memory çağrısında yeni allocate etme
+        self._buf_8    = (ctypes.c_char * 8)()
+        self._buf_64   = (ctypes.c_char * 64)()
+        self._buf_4096 = (ctypes.c_char * 0x4000)()
+        self._bytes_read = ctypes.c_size_t(0)
+        self._write_buf_4 = ctypes.create_string_buffer(4)
+        self._write_buf_8 = ctypes.create_string_buffer(8)
 
     # ------------------------------------------------------------------ attach
     def attach(self, process_name: str = "cs2.exe") -> bool:
@@ -119,13 +126,24 @@ class ProcessManager:
     def read_memory(self, address: int, size: int) -> Optional[bytes]:
         if not self._handle or not address:
             return None
-        buf   = (ctypes.c_char * size)()
-        read  = ctypes.c_size_t(0)
+        # Pre-allocated buffer'ları kullan — sık kullanılan boyutlar için allocation yok
+        if size == 8:
+            buf = self._buf_8
+        elif size == 64:
+            buf = self._buf_64
+        elif size == 0x4000:
+            buf = self._buf_4096
+        else:
+            buf = (ctypes.c_char * size)()
         ok = kernel32.ReadProcessMemory(
             self._handle, ctypes.c_void_p(address),
-            buf, size, ctypes.byref(read)
+            buf, size, ctypes.byref(self._bytes_read)
         )
-        return bytes(buf[:read.value]) if ok and read.value > 0 else None
+        return bytes(buf[:self._bytes_read.value]) if ok and self._bytes_read.value > 0 else None
+
+    def read_pawn_block(self, pawn: int) -> Optional[bytes]:
+        """Pawn'ın tüm netvars'ını tek ReadProcessMemory ile oku (16KB)."""
+        return self.read_memory(pawn, 0x4000)
 
     def read_u8(self, addr: int) -> int:
         d = self.read_memory(addr, 1)
@@ -178,7 +196,6 @@ class ProcessManager:
 
     def write_vec2(self, addr: int, x: float, y: float) -> bool:
         return self.write_memory(addr, struct.pack("<ff", x, y))
-
     # ------------------------------------------------------------------ pointer chain
     def trace_address(self, base: int, offsets: list) -> int:
         if not offsets:

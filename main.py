@@ -25,6 +25,20 @@ from ui.menu import menu_config
 from utils.config_manager import save_config, load_config, load_last_config, list_configs, delete_config
 os.makedirs("config", exist_ok=True)
 
+# Pre-compiled struct parsers — her çağrıda format string parse etme
+_S_I32  = struct.Struct("<i")
+_S_U32  = struct.Struct("<I")
+_S_U64  = struct.Struct("<Q")
+_S_F2   = struct.Struct("<ff")
+_S_F3   = struct.Struct("<fff")
+_S_F16  = struct.Struct("<16f")
+
+def _i32(buf, o): return _S_I32.unpack_from(buf, o)[0]
+def _u32(buf, o): return _S_U32.unpack_from(buf, o)[0]
+def _u64(buf, o): return _S_U64.unpack_from(buf, o)[0]
+def _f2(buf, o):  return _S_F2.unpack_from(buf, o)
+def _f3(buf, o):  return _S_F3.unpack_from(buf, o)
+
 import pygame, OpenGL.GL as gl, imgui
 from imgui.integrations.pygame import PygameRenderer
 import win32api, win32con, win32gui
@@ -136,15 +150,13 @@ def _read_bones(pawn):
     if not sc: return []
     ba=pm.read_u64(sc+off.BoneArray)
     if not ba: return []
-    # Sadece kullanilan bone'lari oku: max index 27 (ankle_R)
-    # 28 bone * 32 byte = 896 byte (30*32=960 yerine)
     r=pm.read_memory(ba, 28 * BONE_JOINT_SIZE)
     if not r: return []
     out=[]
     for i in range(28):
         o=i*BONE_JOINT_SIZE
         if o+12>len(r): break
-        x,y,z=struct.unpack_from("<fff",r,o)
+        x,y,z=_f3(r,o)
         out.append({"pos":(x,y,z),"screen":None})
     return out
 
@@ -174,14 +186,27 @@ def _entity_loop():
                     last_entry_update = time.monotonic()
                 time.sleep(0.05); continue
             cs=pm.read_u64(lp+off.CameraServices)
-            loc={"ctrl":lc,"pawn":lp,
-                 "team":pm.read_i32(lc+off.TeamID),
-                 "hp":pm.read_i32(lp+off.CurrentHealth),
-                 "pos":pm.read_vec3(lp+off.Pos),
-                 "ang":pm.read_vec2(lp+off.angEyeAngles),
-                 "cam":pm.read_vec3(lp+off.vecLastClipCameraPos),
-                 "fov":pm.read_i32(cs+off.iFovStart) if cs else 90,
-                 "weapon":_read_weapon(lp),"idx":0}
+            # Local player: tek batch okuma
+            lp_buf = pm.read_pawn_block(lp)
+            if lp_buf:
+                loc={"ctrl":lc,"pawn":lp,
+                     "team":_i32(lp_buf, off.TeamID),
+                     "hp":  _i32(lp_buf, off.CurrentHealth),
+                     "pos": _f3(lp_buf,  off.Pos),
+                     "ang": _f2(lp_buf,  off.angEyeAngles),
+                     "cam": _f3(lp_buf,  off.vecLastClipCameraPos),
+                     "fov": pm.read_i32(cs+off.iFovStart) if cs else 90,
+                     "weapon":_read_weapon(lp),"idx":0}
+            else:
+                cs=pm.read_u64(lp+off.CameraServices)
+                loc={"ctrl":lc,"pawn":lp,
+                     "team":pm.read_i32(lc+off.TeamID),
+                     "hp":pm.read_i32(lp+off.CurrentHealth),
+                     "pos":pm.read_vec3(lp+off.Pos),
+                     "ang":pm.read_vec2(lp+off.angEyeAngles),
+                     "cam":pm.read_vec3(lp+off.vecLastClipCameraPos),
+                     "fov":pm.read_i32(cs+off.iFovStart) if cs else 90,
+                     "weapon":_read_weapon(lp),"idx":0}
             tmp=[]
             for ci in range(4):
                 cp=pm.read_u64(base+ci*0x8)
@@ -203,22 +228,39 @@ def _entity_loop():
                     if not ch: continue
                     pawn=pm.read_u64(ch+0x70*e3)
                     if not pawn or pawn>0x7FFFFFFFFFFF or pawn<0x10000: continue
-                    hp=pm.read_i32(pawn+off.CurrentHealth)
+
+                    # Pawn batch okuma — tek ReadProcessMemory ile tüm netvars
+                    pawn_buf = pm.read_pawn_block(pawn)
+                    if not pawn_buf: continue
+
+                    hp = _i32(pawn_buf, off.CurrentHealth)
                     if hp<=0: continue
-                    pos=pm.read_vec3(pawn+off.Pos)
-                    bones=_read_bones(pawn)
+
+                    pos = _f3(pawn_buf, off.Pos)
+                    ang = _f2(pawn_buf, off.angEyeAngles)
+
                     # Weapon name: cache ile seyrek oku (500ms)
                     wpn = _weapon_cache.get(pawn, "")
                     if now - last_weapon_update > 0.5:
                         wpn = _read_weapon(pawn)
                         _weapon_cache[pawn] = wpn
-                    foot=None
-                    for ai in [24,27]:
-                        if len(bones)>ai and bones[ai]["screen"]: foot=bones[ai]["screen"]; break
-                    if not foot: foot=game.view.world_to_screen(pos)
+
+                    # Bones: GameSceneNode pawn_buf'tan, BoneArray ayrı okuma
+                    sc = _u64(pawn_buf, off.GameSceneNode)
+                    bones = []
+                    if sc and sc < 0x7FFFFFFFFFFF:
+                        ba = pm.read_u64(sc + off.BoneArray)
+                        if ba:
+                            r = pm.read_memory(ba, 28 * BONE_JOINT_SIZE)
+                            if r:
+                                for bi in range(28):
+                                    o = bi * BONE_JOINT_SIZE
+                                    if o+12 > len(r): break
+                                    bones.append({"pos": _f3(r, o), "screen": None})
+
+                    foot = game.view.world_to_screen(pos)
                     tmp.append({"ctrl":ctrl,"pawn":pawn,"name":name,"team":team,"hp":hp,
-                                "pos":pos,"ang":pm.read_vec2(pawn+off.angEyeAngles),
-                                "weapon":wpn,"bones":bones,"foot":foot})
+                                "pos":pos,"ang":ang,"weapon":wpn,"bones":bones,"foot":foot})
             with _lock: _ents=tmp; _local=loc
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
@@ -243,7 +285,7 @@ def _entity_loop():
                     if cur > max_dur:
                         pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", max_dur))
         except Exception: pass
-        time.sleep(0.016)  # ~60fps entity update
+        time.sleep(0.003)  # ~333fps entity update
 
 threading.Thread(target=_entity_loop,daemon=True).start()
 
@@ -663,16 +705,24 @@ while True:
             # FOV kontrolu (derece cinsinden)
             norm = math.sqrt(delta_yaw**2 + delta_pitch**2)
             if norm < aim_config.fov:
-                # Smooth uygula
                 smooth = max(aim_config.smooth, 0.05)
-                new_yaw   = cur_yaw   + delta_yaw   * (1.0 - smooth)
-                new_pitch = cur_pitch + delta_pitch * (1.0 - smooth)
 
-                # Pitch sinirla (-89 ile 89)
-                new_pitch = max(-89.0, min(89.0, new_pitch))
+                # Mouse hareketi ile aim — CS2'yi crash etmez
+                # Sensitivity: CS2 default m_yaw=0.022, m_pitch=0.022
+                sensitivity = 1.0  # kullanici sensitivity'si (ileride config'e eklenebilir)
+                yaw_per_unit   = sensitivity * 0.022
+                pitch_per_unit = sensitivity * 0.022
 
-                # Direkt view angle yaz - raw input bypass
-                game.set_view_angle(new_pitch, new_yaw)
+                move_x = (delta_yaw   * (1.0 - smooth)) / yaw_per_unit
+                move_y = (delta_pitch * (1.0 - smooth)) / pitch_per_unit
+                move_y = max(-89.0, min(89.0, move_y))
+
+                if abs(move_x) > 0.5 or abs(move_y) > 0.5:
+                    from utils.kmbox import kmbox as _km
+                    if aim_config.smooth > 0:
+                        _km.move_auto(move_x, move_y, 60 * aim_config.smooth)
+                    else:
+                        _km.move(move_x, move_y)
 
                 # Oto Ates: aim kilitliyken otomatik ates
                 if aim_config.auto_shot:
@@ -682,16 +732,13 @@ while True:
         if aim_config.rcs_enabled and local:
             lp_addr = local["pawn"]
             if lp_addr:
-                # m_aimPunchAngle: recoil acisi (pitch, yaw)
                 punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
                 if punch_raw and len(punch_raw) >= 8:
-                    punch_pitch, punch_yaw = struct.unpack_from("<ff", punch_raw)
-                    # Sadece ates ediliyorsa uygula (shots_fired > 0)
+                    punch_pitch, punch_yaw = _f2(punch_raw, 0)
                     shots_raw = pm.read_memory(lp_addr + off.iShotsFired, 4)
-                    shots = struct.unpack_from("<I", shots_raw)[0] if shots_raw else 0
-                    if shots > 1:  # Ilk mermi recoil yok
+                    shots = _u32(shots_raw, 0) if shots_raw else 0
+                    if shots > 1:
                         cur_ang = pm.read_vec2(lp_addr + off.angEyeAngles)
-                        # Recoil'i view angle'dan cikar (kompanzasyon)
                         new_p = cur_ang[0] - punch_pitch * aim_config.rcs_scale
                         new_y = cur_ang[1] - punch_yaw  * aim_config.rcs_scale
                         new_p = max(-89.0, min(89.0, new_p))
