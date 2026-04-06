@@ -706,25 +706,14 @@ while True:
             norm = math.sqrt(delta_yaw**2 + delta_pitch**2)
             if norm < aim_config.fov:
                 smooth = max(aim_config.smooth, 0.05)
+                new_yaw   = cur_yaw   + delta_yaw   * (1.0 - smooth)
+                new_pitch = cur_pitch + delta_pitch * (1.0 - smooth)
+                new_pitch = max(-89.0, min(89.0, new_pitch))
 
-                # Mouse hareketi ile aim — CS2'yi crash etmez
-                # Sensitivity: CS2 default m_yaw=0.022, m_pitch=0.022
-                sensitivity = 1.0  # kullanici sensitivity'si (ileride config'e eklenebilir)
-                yaw_per_unit   = sensitivity * 0.022
-                pitch_per_unit = sensitivity * 0.022
+                # Sadece dwViewAngles'a yaz — pawn offset'e yazmak crash ettiriyor
+                data = struct.pack("<ff", new_pitch, new_yaw)
+                pm.write_memory(game.address.view_angle, data)
 
-                move_x = (delta_yaw   * (1.0 - smooth)) / yaw_per_unit
-                move_y = (delta_pitch * (1.0 - smooth)) / pitch_per_unit
-                move_y = max(-89.0, min(89.0, move_y))
-
-                if abs(move_x) > 0.5 or abs(move_y) > 0.5:
-                    from utils.kmbox import kmbox as _km
-                    if aim_config.smooth > 0:
-                        _km.move_auto(move_x, move_y, 60 * aim_config.smooth)
-                    else:
-                        _km.move(move_x, move_y)
-
-                # Oto Ates: aim kilitliyken otomatik ates
                 if aim_config.auto_shot:
                     _triggerbot_shoot()
 

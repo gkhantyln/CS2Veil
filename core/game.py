@@ -80,17 +80,9 @@ class CGame:
 
     def set_view_angle(self, pitch: float, yaw: float) -> bool:
         from .process_manager import process_mgr as pm
-        from .offsets import offsets as off
         import struct
-        # v_angle: C_BasePlayerPawn + 0x1490 - direkt pawn'a yaz
-        lp = pm.read_u64(self.address.local_pawn)
-        if not lp:
-            return False
         data = struct.pack("<ff", pitch, yaw)
-        # Hem v_angle hem dwViewAngles'a yaz
-        r1 = pm.write_memory(lp + 0x1490, data)
-        r2 = pm.write_memory(self.address.view_angle, data)
-        return r1 or r2
+        return pm.write_memory(self.address.view_angle, data)
 
     def set_force_jump(self, value: int) -> bool:
         from .process_manager import process_mgr as pm
