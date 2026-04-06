@@ -197,7 +197,6 @@ def render_menu():
 
 def _render_config_tab():
     import os
-    from utils.config_saver import save_config, load_config
 
     changed, _config_name_buf[0] = imgui.input_text("Konfig Adi", _config_name_buf[0], 128)
     if imgui.button("Olustur") and _config_name_buf[0]:

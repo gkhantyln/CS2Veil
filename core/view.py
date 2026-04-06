@@ -3,6 +3,7 @@ CView - WorldToScreen.
 CS2 view matrix row-major.
 Calistirilmis formul: W=row[3], X=row[0], Y=row[1] (negatif)
 """
+import threading
 from typing import Tuple, Optional
 
 
@@ -11,6 +12,7 @@ class CView:
         self.matrix: list = [[0.0] * 4 for _ in range(4)]
         self.screen_w: float = 1920.0
         self.screen_h: float = 1080.0
+        self._matrix_lock = threading.Lock()
 
     def set_screen_size(self, w: float, h: float):
         self.screen_w = w
@@ -23,9 +25,11 @@ class CView:
         sx  = SightX + row[0][...] / W * SightX
         sy  = SightY - row[1][...] / W * SightY
         """
-        m = self.matrix
         sx, sy = self.screen_w / 2, self.screen_h / 2
         x, y, z = pos
+
+        with self._matrix_lock:
+            m = [row[:] for row in self.matrix]  # snapshot al
 
         w = m[3][0]*x + m[3][1]*y + m[3][2]*z + m[3][3]
         if w <= 0.01:

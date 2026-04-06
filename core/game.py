@@ -70,9 +70,10 @@ class CGame:
         if not raw:
             return False
         flat = struct.unpack_from("<16f", raw)
-        for row in range(4):
-            for col in range(4):
-                self.view.matrix[row][col] = flat[row * 4 + col]
+        with self.view._matrix_lock:
+            for row in range(4):
+                for col in range(4):
+                    self.view.matrix[row][col] = flat[row * 4 + col]
         return True
 
     def set_view_angle(self, pitch: float, yaw: float) -> bool:

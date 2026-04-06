@@ -18,12 +18,10 @@ print()  # Satir temizle
 from core.game import game; game.init_address()
 from core.offsets import offsets as off
 from core.bone import BONEINDEX, BONE_JOINT_SIZE, BONE_CHAINS
-from mods.aimbot import aim_config, HOTKEY_NAMES as AIM_HK
+from mods.aimbot import aim_config, HOTKEY_NAMES as AIM_HK, PISTOLS, SNIPERS
 from mods.triggerbot import trigger_config, HOTKEY_NAMES as TRIG_HK
 from utils.kmbox import kmbox; kmbox.init_from_config("kmbox.json")
 from ui.menu import menu_config
-from ui.render import draw_health_bar
-from core.bone import BONE_CHAINS
 from utils.config_manager import save_config, load_config, load_last_config, list_configs, delete_config
 os.makedirs("config", exist_ok=True)
 
@@ -224,6 +222,11 @@ def _entity_loop():
             with _lock: _ents=tmp; _local=loc
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
+                # Sadece aktif pawn adreslerini cache'de tut
+                active_pawns = {e["pawn"] for e in tmp}
+                for k in list(_weapon_cache.keys()):
+                    if k not in active_pawns:
+                        del _weapon_cache[k]
 
             # No Flash: flash duration'i sifirla veya sinirla
             if menu_config.no_flash:
@@ -317,6 +320,15 @@ def _triggerbot_check(local, ents):
 
 # ---- Main loop ----
 clock=pygame.time.Clock(); menu_open=False; mk_last=False; mk_t=0.0; menu_was=False
+
+# HP'ye gore renk: tam HP'de kullanicinin secimi, dusunce kirmiziya kayar
+def hp_color(hp, base_color, alpha=1.0):
+    t = max(0.0, min(1.0, hp / 100.0))
+    br, bg, bb = base_color[0], base_color[1], base_color[2]
+    r = br * t + 1.0 * (1.0 - t)
+    g = bg * t + 0.0 * (1.0 - t)
+    b = bb * t + 0.0 * (1.0 - t)
+    return imgui.get_color_u32_rgba(r, g, b, alpha)
 
 while True:
     mk=bool(user32.GetAsyncKeyState(win32con.VK_INSERT)&0x8000)
@@ -464,16 +476,6 @@ while True:
     dl=imgui.get_background_draw_list()
     with _lock: ents=list(_ents); local=_local
 
-    # HP'ye gore renk: tam HP'de kullanicinin secimi, dusunce kirmiziya kayar
-    def hp_color(hp, base_color, alpha=1.0):
-        t = max(0.0, min(1.0, hp / 100.0))
-        br, bg, bb = base_color[0], base_color[1], base_color[2]
-        # t=1 -> base_color, t=0 -> kirmizi (1,0,0)
-        r = br * t + 1.0 * (1.0 - t)
-        g = bg * t + 0.0 * (1.0 - t)
-        b = bb * t + 0.0 * (1.0 - t)
-        return imgui.get_color_u32_rgba(r, g, b, alpha)
-
     if local:
         # Durum gostergesi
         if len(ents) > 0:
@@ -545,7 +547,6 @@ while True:
                     # Secili hitbox'a gore hedef bone
                     _bone_map = [BONEINDEX.head, BONEINDEX.neck_0, BONEINDEX.spine_1]
                     _wpn = ent.get("weapon","")
-                    from mods.aimbot import PISTOLS, SNIPERS
                     if _wpn in PISTOLS:
                         _bidx = _bone_map[min(aim_config.position_pistol, 2)]
                     elif _wpn in SNIPERS:
