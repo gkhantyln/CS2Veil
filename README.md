@@ -2,7 +2,11 @@
 ### github@gkhantyln
 
 <p align="center">
-  <img src="cs2veil.png" alt="CS2Veil" width="600"/>
+  <img src="cs2veil_image.png" alt="CS2Veil"/>
+</p>
+
+<p align="center">
+  <img src="cs2veil.png" alt="CS2Veil"/>
 </p>
 
 ---
