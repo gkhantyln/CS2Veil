@@ -2,7 +2,7 @@
 ### github@gkhantyln
 
 <p align="center">
-  <img src="cs2veil.png" alt="CS2Veil"/>
+  <img src="cs2veil_image.png" alt="CS2Veil"/>
 </p>
 
 <p align="center">
@@ -10,6 +10,12 @@
     <img src="https://img.shields.io/badge/Watch%20Demo-YouTube-red?style=for-the-badge&logo=youtube" alt="Watch Demo"/>
   </a>
 </p>
+
+<p align="center">
+  <img src="cs2veil.png" alt="CS2Veil"/>
+</p>
+
+
 
 ---
 
