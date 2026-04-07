@@ -41,7 +41,20 @@ class MenuConfig:
         self.esp_fov_only       = True   # Sadece FOV icindekiler
         self.no_flash           = False  # No Flash
         self.flash_max_alpha    = 180    # 0=tam flash, 255=hic flash yok
-
+        # Crosshair
+        self.crosshair_recoil        = False
+        self.crosshair_sniper        = False
+        self.crosshair_dynamic       = False
+        self.crosshair_snaplines     = False
+        # Her özellik için ayrı renk
+        self.crosshair_recoil_color  = [0.0, 1.0, 0.0, 1.0]   # Yeşil
+        self.crosshair_sniper_color  = [1.0, 1.0, 1.0, 0.9]   # Beyaz
+        self.crosshair_dynamic_color = [1.0, 0.3, 0.3, 1.0]   # Kırmızı (glow)
+        self.crosshair_dynamic_core  = [1.0, 1.0, 1.0, 1.0]   # Beyaz (merkez)
+        self.crosshair_snaplines_color=[1.0, 1.0, 0.0, 0.75]  # Sarı
+        # Dış oklar
+        self.crosshair_arrows        = False
+        self.crosshair_arrows_color  = [1.0, 0.5, 0.0, 0.9]   # Turuncu başlangıç
 
 menu_config = MenuConfig()
 _config_name_buf = [""]

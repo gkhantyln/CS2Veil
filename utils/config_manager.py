@@ -20,22 +20,33 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
 
     data = {
         "visuals": {
-            "show_box_esp":       menu_cfg.show_box_esp,
-            "box_color":          menu_cfg.box_color,
-            "box_type":           menu_cfg.box_type,
-            "show_bone_esp":      menu_cfg.show_bone_esp,
-            "bone_color":         menu_cfg.bone_color,
-            "show_health_bar":    menu_cfg.show_health_bar,
-            "health_bar_type":    menu_cfg.health_bar_type,
-            "show_player_name":   menu_cfg.show_player_name,
-            "player_name_pos":    menu_cfg.player_name_pos,
-            "player_name_size":   menu_cfg.player_name_size,
-            "show_distance":      menu_cfg.show_distance,
-            "show_eye_ray":       menu_cfg.show_eye_ray,
-            "eye_ray_color":      menu_cfg.eye_ray_color,
-            "show_line_to_enemy": menu_cfg.show_line_to_enemy,
-            "line_to_enemy_color":menu_cfg.line_to_enemy_color,
-            "esp_fov_only":       menu_cfg.esp_fov_only,
+            "show_box_esp":          menu_cfg.show_box_esp,
+            "box_color":             menu_cfg.box_color,
+            "box_type":              menu_cfg.box_type,
+            "show_bone_esp":         menu_cfg.show_bone_esp,
+            "bone_color":            menu_cfg.bone_color,
+            "show_health_bar":       menu_cfg.show_health_bar,
+            "health_bar_type":       menu_cfg.health_bar_type,
+            "show_player_name":      menu_cfg.show_player_name,
+            "player_name_pos":       menu_cfg.player_name_pos,
+            "player_name_size":      menu_cfg.player_name_size,
+            "show_distance":         menu_cfg.show_distance,
+            "show_eye_ray":          menu_cfg.show_eye_ray,
+            "eye_ray_color":         menu_cfg.eye_ray_color,
+            "show_line_to_enemy":    menu_cfg.show_line_to_enemy,
+            "line_to_enemy_color":   menu_cfg.line_to_enemy_color,
+            "esp_fov_only":          menu_cfg.esp_fov_only,
+            "crosshair_recoil":      menu_cfg.crosshair_recoil,
+            "crosshair_sniper":      menu_cfg.crosshair_sniper,
+            "crosshair_dynamic":     menu_cfg.crosshair_dynamic,
+            "crosshair_snaplines":   menu_cfg.crosshair_snaplines,
+            "crosshair_recoil_color":   menu_cfg.crosshair_recoil_color,
+            "crosshair_sniper_color":   menu_cfg.crosshair_sniper_color,
+            "crosshair_dynamic_color":  menu_cfg.crosshair_dynamic_color,
+            "crosshair_dynamic_core":   menu_cfg.crosshair_dynamic_core,
+            "crosshair_snaplines_color":menu_cfg.crosshair_snaplines_color,
+            "crosshair_arrows":         menu_cfg.crosshair_arrows,
+            "crosshair_arrows_color":   menu_cfg.crosshair_arrows_color,
         },
         "settings": {
             "team_check":         menu_cfg.team_check,
@@ -58,6 +69,7 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "ignore_on_shot":     aim_cfg.ignore_on_shot,
             "rcs_enabled":        aim_cfg.rcs_enabled,
             "rcs_scale":          aim_cfg.rcs_scale,
+            "velocity_pred":      aim_cfg.velocity_pred,
         },
         "triggerbot": {
             "enabled":            trig_cfg.enabled,
@@ -110,6 +122,17 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.show_line_to_enemy  = v.get("show_line_to_enemy", menu_cfg.show_line_to_enemy)
     menu_cfg.line_to_enemy_color = v.get("line_to_enemy_color",menu_cfg.line_to_enemy_color)
     menu_cfg.esp_fov_only        = v.get("esp_fov_only",       menu_cfg.esp_fov_only)
+    menu_cfg.crosshair_recoil    = v.get("crosshair_recoil",   menu_cfg.crosshair_recoil)
+    menu_cfg.crosshair_sniper    = v.get("crosshair_sniper",   menu_cfg.crosshair_sniper)
+    menu_cfg.crosshair_dynamic   = v.get("crosshair_dynamic",  menu_cfg.crosshair_dynamic)
+    menu_cfg.crosshair_snaplines = v.get("crosshair_snaplines",menu_cfg.crosshair_snaplines)
+    menu_cfg.crosshair_recoil_color    = v.get("crosshair_recoil_color",    menu_cfg.crosshair_recoil_color)
+    menu_cfg.crosshair_sniper_color    = v.get("crosshair_sniper_color",    menu_cfg.crosshair_sniper_color)
+    menu_cfg.crosshair_dynamic_color   = v.get("crosshair_dynamic_color",   menu_cfg.crosshair_dynamic_color)
+    menu_cfg.crosshair_dynamic_core    = v.get("crosshair_dynamic_core",    menu_cfg.crosshair_dynamic_core)
+    menu_cfg.crosshair_snaplines_color = v.get("crosshair_snaplines_color", menu_cfg.crosshair_snaplines_color)
+    menu_cfg.crosshair_arrows          = v.get("crosshair_arrows",          menu_cfg.crosshair_arrows)
+    menu_cfg.crosshair_arrows_color    = v.get("crosshair_arrows_color",    menu_cfg.crosshair_arrows_color)
 
     s = data.get("settings", {})
     menu_cfg.team_check          = s.get("team_check",         menu_cfg.team_check)
@@ -132,6 +155,7 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     aim_cfg.ignore_on_shot       = a.get("ignore_on_shot",     aim_cfg.ignore_on_shot)
     aim_cfg.rcs_enabled          = a.get("rcs_enabled",        aim_cfg.rcs_enabled)
     aim_cfg.rcs_scale            = a.get("rcs_scale",          aim_cfg.rcs_scale)
+    aim_cfg.velocity_pred        = a.get("velocity_pred",      aim_cfg.velocity_pred)
     aim_cfg.apply_hotkey()
 
     t = data.get("triggerbot", {})

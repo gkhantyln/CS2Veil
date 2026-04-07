@@ -49,6 +49,7 @@ class AimConfig:
         self.ignore_on_shot = True
         self.rcs_enabled    = False
         self.rcs_scale      = 1.0
+        self.velocity_pred  = False   # Hiz tahmini
         self.visible_check  = True
         self.show_fov_circle= False
         self.fov_color      = [0.90, 0.90, 0.90, 1.0]

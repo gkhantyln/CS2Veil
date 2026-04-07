@@ -105,19 +105,25 @@ Program başladığında:
 
 ## Arayüz Rehberi
 
-Menü 4 sekmeden oluşur:
+Menü 6 sekmeden oluşur:
 
 ### 🎨 Gorsel Sekmesi
 ESP görsel ayarları
 
 ### 🎯 Nishan Botu Sekmesi
-Aimbot ayarları
+Aimbot, RCS ve Hız Tahmini ayarları
 
 ### ⚡ Tetik Botu Sekmesi
 Otomatik ateş sistemi
 
 ### ⚙️ Ayarlar Sekmesi
 Genel ayarlar, No Flash, Config yönetimi
+
+### 🎯 Crosshair Sekmesi
+Nişangah görsel özellikleri
+
+### 🗂️ Konfig Sekmesi
+Config kayıt, yükleme ve silme
 
 ---
 
@@ -155,8 +161,9 @@ Genel ayarlar, No Flash, Config yönetimi
 | **Oto Ateş** | Aimbot kilitlenince otomatik ateş eder |
 | **Görünürlük** | Sadece görünen düşmanlara kilitlenir |
 | **Ateş Ederken Dur** | Sol tık basılıyken aimbot çalışmaz |
+| **Hız Tahmini** | Hareket eden hedefin pozisyonunu 2.5 tick öne tahmin eder |
 
-**Çalışma Prensibi:** Aimbot `ReadProcessMemory` ile view angle'ı direkt yazar — raw input bypass, her zaman çalışır.
+**Çalışma Prensibi:** Aimbot `dwViewAngles` adresine açı yazarak çalışır — CS2'yi crash ettirmez.
 
 ---
 
@@ -207,6 +214,28 @@ Aimbot olmadan: Sadece spray kontrolü için ideal
 
 ---
 
+### Crosshair — Nişangah Sistemi
+
+| Özellik | Açıklama |
+|---------|---------|
+| **Recoil Cross** | Ateş ederken geri tepmenin gittiği yönü gösterir. Renk seçilebilir |
+| **Sniper Cross** | Outline'lı ince artı nişangah. Renk seçilebilir |
+| **Dynamic Cross** | Ateş ettikçe büyüyen, glow efektli nişangah. Glow ve merkez rengi ayrı seçilebilir |
+| **Snap Lines** | Ekran altından düşmanın ayağına çizgi. Renk + opaklık seçilebilir |
+| **Dış Oklar** | FOV çemberi etrafında düşman yönünü gösteren oklar. HP'ye göre renk değişir, opaklık ayarlanabilir |
+
+**Dynamic Cross Detayı:**
+- 3 katmanlı glow efekti — dıştan içe azalan parlaklık
+- Ateş ettikçe büyür, durduğunda küçülür
+- Glow rengi ve merkez nokta rengi birbirinden bağımsız seçilebilir
+
+**Dış Oklar Detayı:**
+- FOV çemberinin tam üzerinde konumlanır
+- Başlangıç rengi seçilir, HP düştükçe kırmızıya kayar
+- Opaklık (A) değeri ile şeffaflık ayarlanır
+
+---
+
 
 ## Legit Kullanım Rehberi
 
@@ -221,6 +250,7 @@ Hedef: Boyun (kafa her zaman şüphelidir)
 Oto Ateş: KAPALI (tetik botu ile kullanın)
 Görünürlük: AÇIK (duvardan kilitleme şüphelidir)
 Ateş Ederken Dur: AÇIK
+Hız Tahmini: AÇIK (hareket eden hedeflerde daha isabetli)
 ```
 
 ### Tetik Botu Legit Ayarları

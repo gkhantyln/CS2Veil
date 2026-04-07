@@ -56,6 +56,7 @@ class Offsets:
     CameraServices:       int = 0
     iFovStart:            int = 0
     fFlags:               int = 0
+    vecVelocity:          int = 0
     bSpottedByMask:       int = 0
 
     GlobalVar: GlobalVarOffsets = field(default_factory=GlobalVarOffsets)
@@ -119,6 +120,7 @@ class Offsets:
         self.CameraServices       = field("C_BasePlayerPawn", "m_pCameraServices")
         self.iFovStart            = field("CCSPlayerBase_CameraServices", "m_iFOVStart")
         self.fFlags               = field("C_BaseEntity", "m_fFlags")
+        self.vecVelocity          = field("C_BasePlayerPawn", "m_vecVelocity")
 
         m_entity_spotted = field("C_CSPlayerPawnBase", "m_entitySpottedState")
         m_spotted_mask   = field("EntitySpottedState_t", "m_bSpottedByMask")
