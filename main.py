@@ -189,12 +189,14 @@ def _entity_loop():
             # Local player: tek batch okuma
             lp_buf = pm.read_pawn_block(lp)
             if lp_buf:
+                pp_raw = _f2(lp_buf, off.aimPunchAngle) if off.aimPunchAngle < 0x4000 else (0.0, 0.0)
                 loc={"ctrl":lc,"pawn":lp,
                      "team":_i32(lp_buf, off.TeamID),
                      "hp":  _i32(lp_buf, off.CurrentHealth),
                      "pos": _f3(lp_buf,  off.Pos),
                      "ang": _f2(lp_buf,  off.angEyeAngles),
                      "cam": _f3(lp_buf,  off.vecLastClipCameraPos),
+                     "punch": pp_raw,
                      "fov": pm.read_i32(cs+off.iFovStart) if cs else 90,
                      "weapon":_read_weapon(lp),"idx":0}
             else:
@@ -504,26 +506,20 @@ def draw_crosshair(dl, local, ents):
 
     # ── Recoil Cross ─────────────────────────────────────────────────────
     if menu_config.crosshair_recoil:
-        lp_addr = local.get("pawn")
-        if lp_addr:
-            shots = pm.read_i32(lp_addr + off.iShotsFired)
-            if shots > 0:
-                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
-                if punch_raw and len(punch_raw) >= 8:
-                    pp, py2 = _f2(punch_raw, 0)
-                    if abs(pp) > 0.05 or abs(py2) > 0.05:
-                        cr, cg, cb, ca = menu_config.crosshair_recoil_color
-                        mult = (H / 90.0) * 1.5
-                        rx = cx + (-py2 * mult)
-                        ry = cy + ( pp  * mult)
-                        col  = imgui.get_color_u32_rgba(cr, cg, cb, ca)
-                        colb = imgui.get_color_u32_rgba(0, 0, 0, ca * 0.6)
-                        L = 5
-                        dl.add_line(rx-L, ry, rx+L, ry, colb, 3.0)
-                        dl.add_line(rx, ry-L, rx, ry+L, colb, 3.0)
-                        dl.add_line(rx-L, ry, rx+L, ry, col,  1.5)
-                        dl.add_line(rx, ry-L, rx, ry+L, col,  1.5)
-                        dl.add_circle_filled(rx, ry, 1.5, col)
+        pp, py2 = local.get("punch", (0.0, 0.0))
+        if abs(pp) > 0.05 or abs(py2) > 0.05:
+            cr, cg, cb, ca = menu_config.crosshair_recoil_color
+            mult = (H / 90.0) * 1.5
+            rx = cx + (-py2 * mult)
+            ry = cy + ( pp  * mult)
+            col  = imgui.get_color_u32_rgba(cr, cg, cb, ca)
+            colb = imgui.get_color_u32_rgba(0, 0, 0, ca * 0.6)
+            L = 5
+            dl.add_line(rx-L, ry, rx+L, ry, colb, 3.0)
+            dl.add_line(rx, ry-L, rx, ry+L, colb, 3.0)
+            dl.add_line(rx-L, ry, rx+L, ry, col,  1.5)
+            dl.add_line(rx, ry-L, rx, ry+L, col,  1.5)
+            dl.add_circle_filled(rx, ry, 1.5, col)
 
 while True:
     mk=bool(user32.GetAsyncKeyState(win32con.VK_INSERT)&0x8000)
@@ -915,15 +911,11 @@ while True:
             target_yaw   = math.atan2(dy,dx)*57.295779513
             target_pitch = -math.atan2(dz,d2)*57.295779513
 
-            # Punch kompanzasyonu — recoil hesaba katilir
-            lp_addr = local["pawn"]
-            if lp_addr:
-                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
-                if punch_raw and len(punch_raw) >= 8:
-                    pp, py2 = _f2(punch_raw, 0)
-                    target_pitch -= pp  * 2.0
-                    target_yaw   -= py2 * 2.0
-
+            # Punch kompanzasyonu — recoil hesaba katilir (snapshot'tan, ekstra syscall yok)
+            pp, py2 = local.get("punch", (0.0, 0.0))
+            if pp or py2:
+                target_pitch -= pp  * 2.0
+                target_yaw   -= py2 * 2.0
             # Mevcut acidan fark
             cur_pitch, cur_yaw = local["ang"]
             delta_yaw   = target_yaw   - cur_yaw
@@ -951,17 +943,15 @@ while True:
         if aim_config.rcs_enabled and local:
             lp_addr = local["pawn"]
             if lp_addr:
-                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
-                if punch_raw and len(punch_raw) >= 8:
-                    punch_pitch, punch_yaw = _f2(punch_raw, 0)
-                    shots_raw = pm.read_memory(lp_addr + off.iShotsFired, 4)
-                    shots = _u32(shots_raw, 0) if shots_raw else 0
-                    if shots > 1:
-                        cur_ang = pm.read_vec2(lp_addr + off.angEyeAngles)
-                        new_p = cur_ang[0] - punch_pitch * aim_config.rcs_scale
-                        new_y = cur_ang[1] - punch_yaw  * aim_config.rcs_scale
-                        new_p = max(-89.0, min(89.0, new_p))
-                        game.set_view_angle(new_p, new_y)
+                shots_raw = pm.read_memory(lp_addr + off.iShotsFired, 4)
+                shots = _u32(shots_raw, 0) if shots_raw else 0
+                if shots > 1:
+                    punch_pitch, punch_yaw = local.get("punch", (0.0, 0.0))
+                    cur_ang = pm.read_vec2(lp_addr + off.angEyeAngles)
+                    new_p = cur_ang[0] - punch_pitch * aim_config.rcs_scale
+                    new_y = cur_ang[1] - punch_yaw   * aim_config.rcs_scale
+                    new_p = max(-89.0, min(89.0, new_p))
+                    game.set_view_angle(new_p, new_y)
 
         # Crosshair
         if any([menu_config.crosshair_recoil, menu_config.crosshair_sniper,
