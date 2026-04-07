@@ -54,6 +54,7 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "team_check":         menu_cfg.team_check,
             "no_flash":           menu_cfg.no_flash,
             "flash_max_alpha":    menu_cfg.flash_max_alpha,
+            "stream_proof":       menu_cfg.stream_proof,
         },
         "aimbot": {
             "enabled":            aim_cfg.enabled,
@@ -142,6 +143,7 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.team_check          = s.get("team_check",         menu_cfg.team_check)
     menu_cfg.no_flash            = s.get("no_flash",           menu_cfg.no_flash)
     menu_cfg.flash_max_alpha     = s.get("flash_max_alpha",    menu_cfg.flash_max_alpha)
+    menu_cfg.stream_proof        = s.get("stream_proof",       menu_cfg.stream_proof)
 
     a = data.get("aimbot", {})
     aim_cfg.enabled              = a.get("enabled",            aim_cfg.enabled)

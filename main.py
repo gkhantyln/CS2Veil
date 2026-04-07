@@ -122,10 +122,20 @@ else:
 
 print(f"[ CS2Veil ] Overlay {W}x{H} | INSERT=menu")
 
+def _apply_stream_proof(enabled: bool):
+    """OBS/ekran paylasiminda overlay'i gizle — Win10 2004+"""
+    try:
+        val = 0x11 if enabled else 0  # WDA_EXCLUDEFROMCAPTURE = 0x11
+        user32.SetWindowDisplayAffinity(hwnd, val)
+    except Exception:
+        pass
+
 # Son kaydedilen config'i yukle
 try:
     if load_last_config(menu_config, aim_config, trigger_config, None):
         print("[ config ] Son config yuklendi")
+        if menu_config.stream_proof:
+            _apply_stream_proof(True)
 except Exception as _e:
     print(f"[ config ] Yuklenemedi: {_e}")
 
@@ -618,6 +628,11 @@ while True:
 
         if imgui.begin_tab_item("Ayarlar")[0]:
             _,menu_config.team_check=imgui.checkbox("Takim Kontrolu",menu_config.team_check)
+            imgui.separator()
+            ch,menu_config.stream_proof=imgui.checkbox("Stream Proof (OBS Gizle)",menu_config.stream_proof)
+            if ch:
+                _apply_stream_proof(menu_config.stream_proof)
+            imgui.same_line(); imgui.text_colored("OBS/Discord ekran paylasiminda gizler",0.6,0.6,0.6,1)
             imgui.separator()
             _,menu_config.no_flash=imgui.checkbox("No Flash",menu_config.no_flash)
             if not menu_config.no_flash:

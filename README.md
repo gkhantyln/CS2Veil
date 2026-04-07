@@ -203,6 +203,19 @@ Config kayıt, yükleme ve silme
 
 ---
 
+### Stream Proof — OBS / Ekran Paylaşımı Gizleme
+
+`Ayarlar → Stream Proof (OBS Gizle)` seçeneğini açın.
+
+- Overlay **OBS**, **Discord ekran paylaşımı** ve **screenshot** araçlarından tamamen gizlenir
+- Sadece fiziksel monitörde görünür — kayıt veya yayında görünmez
+- Windows 10 2004 ve üzeri gerektirir
+- Config'e kaydedilir, program başlarken otomatik uygulanır
+
+> **Not:** Bu özellik `SetWindowDisplayAffinity` Windows API'si kullanır. Oyun içi anti-cheat ile ilgisi yoktur, sadece ekran yakalama araçlarını etkiler.
+
+---
+
 ### RCS — Recoil Control System (Geri Tepme Kontrolü)
 
 | Ayar | Açıklama |

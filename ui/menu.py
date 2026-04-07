@@ -41,6 +41,7 @@ class MenuConfig:
         self.esp_fov_only       = True   # Sadece FOV icindekiler
         self.no_flash           = False  # No Flash
         self.flash_max_alpha    = 180    # 0=tam flash, 255=hic flash yok
+        self.stream_proof       = False  # OBS/ekran paylasimi gizleme
         # Crosshair
         self.crosshair_recoil        = False
         self.crosshair_sniper        = False
