@@ -93,9 +93,20 @@ Pillow
 
 ## Başlatma
 
+**Önerilen yöntem — Start.bat:**
+```
+Start.bat dosyasına çift tıklayın
+```
+
+Menü açılır:
+- `[1]` → CS2Veil'i başlatır
+- `[2]` → CS2 ve offset durumunu yeniler
+- `[0]` → Çıkış
+
+**Manuel başlatma:**
 ```bash
-# CS2'yi önce Pencereli Tam Ekran modunda açın
-# Sonra:
+python menu.py
+# veya direkt:
 python main.py
 ```
 
@@ -103,7 +114,7 @@ Program başladığında:
 - Sol üstte **yeşil** `CS2Veil | Aktif | Entity: X` → Düşmanlar okunuyor
 - Sol üstte **kırmızı** `CS2Veil | Deaktif` → Maçta değilsiniz veya bekleme ekranındasınız
 
-**Menüyü açmak/kapatmak:** `INSERT` tuşu
+**Oyun içi menüyü açmak/kapatmak:** `INSERT` tuşu
 
 ---
 
