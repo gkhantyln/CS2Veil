@@ -275,6 +275,91 @@ def _entity_loop():
                     tmp.append({"ctrl":ctrl,"pawn":pawn,"name":name,"team":team,"hp":hp,
                                 "pos":pos,"ang":ang,"vel":vel,"weapon":wpn,"bones":bones,"foot":foot})
             with _lock: _ents=tmp; _local=loc
+
+            # ── Aimbot (333Hz) ───────────────────────────────────────────────
+            if aim_config.enabled and loc:
+                import ctypes as _ct
+                _ak = bool(_ct.WinDLL("user32").GetAsyncKeyState(aim_config.hotkey) & 0x8000)
+                if _ak:
+                    _aim_pos = None
+                    _max_d   = float('inf')
+                    _lt      = loc["team"]
+                    for _ent in tmp:
+                        if menu_config.team_check and _lt >= 2 and _ent["team"] == _lt:
+                            continue
+                        _bones = _ent["bones"]
+                        if len(_bones) <= BONEINDEX.head or not _bones[BONEINDEX.head]["pos"]:
+                            continue
+                        # Ekran mesafesi yerine kamera açı mesafesi kullan
+                        _lx,_ly,_lz = loc["cam"]
+                        _bx,_by,_bz = _bones[BONEINDEX.head]["pos"]
+                        _dx,_dy = _bx-_lx, _by-_ly
+                        _d2 = math.sqrt(_dx*_dx+_dy*_dy)
+                        if _d2 < 0.001: continue
+                        _ty = math.atan2(_dy,_dx)*57.295779513
+                        _tp = -math.atan2(_bz-_lz,_d2)*57.295779513
+                        _cp,_cy2 = loc["ang"]
+                        _dyw = _ty - _cy2
+                        while _dyw >  180: _dyw -= 360
+                        while _dyw < -180: _dyw += 360
+                        _dpt = _tp - _cp
+                        _dist = math.sqrt(_dyw**2+_dpt**2)
+                        if _dist < _max_d and _dist < aim_config.fov:
+                            _max_d = _dist
+                            _bone_map = [BONEINDEX.head, BONEINDEX.neck_0, BONEINDEX.spine_1]
+                            _wpn = _ent.get("weapon","")
+                            if _wpn in PISTOLS:
+                                _bidx = _bone_map[min(aim_config.position_pistol,2)]
+                            elif _wpn in SNIPERS:
+                                _bidx = _bone_map[min(aim_config.position_sniper,2)]
+                            else:
+                                _bidx = _bone_map[min(aim_config.position,2)]
+                            if len(_bones) > _bidx:
+                                _ap = list(_bones[_bidx]["pos"])
+                                if _bidx == BONEINDEX.head: _ap[2] -= 1.0
+                                if aim_config.velocity_pred:
+                                    _vx,_vy,_vz = _ent.get("vel",(0,0,0))
+                                    if abs(_vx)<500 and abs(_vy)<500 and (abs(_vx)+abs(_vy))>0.1:
+                                        _pt = 0.015625*2.5
+                                        _ap[0]+=_vx*_pt; _ap[1]+=_vy*_pt; _ap[2]+=_vz*_pt
+                                _aim_pos = tuple(_ap)
+
+                    if _aim_pos:
+                        _ax,_ay,_az = _aim_pos
+                        _lx,_ly,_lz = loc["cam"]
+                        _dx,_dy,_dz = _ax-_lx,_ay-_ly,_az-_lz
+                        _d2 = math.sqrt(_dx*_dx+_dy*_dy)
+                        if _d2 > 0.001:
+                            _tyw = math.atan2(_dy,_dx)*57.295779513
+                            _tpt = -math.atan2(_dz,_d2)*57.295779513
+                            _pp,_py2 = loc.get("punch",(0.0,0.0))
+                            _tpt -= _pp*2.0; _tyw -= _py2*2.0
+                            _cp,_cy2 = loc["ang"]
+                            _dyw = _tyw-_cy2
+                            while _dyw >  180: _dyw -= 360
+                            while _dyw < -180: _dyw += 360
+                            _dpt = _tpt-_cp
+                            _norm = math.sqrt(_dyw**2+_dpt**2)
+                            if _norm < aim_config.fov:
+                                _sm = max(aim_config.smooth, 0.05)
+                                _nyw = _cy2 + _dyw*(1.0-_sm)
+                                _npt = _cp  + _dpt*(1.0-_sm)
+                                _npt = max(-89.0,min(89.0,_npt))
+                                pm.write_memory(game.address.view_angle,
+                                                struct.pack("<ff",_npt,_nyw))
+
+            # ── RCS (333Hz) ──────────────────────────────────────────────────
+            if aim_config.rcs_enabled and loc:
+                _lp = loc["pawn"]
+                if _lp:
+                    _shots_r = pm.read_memory(_lp + off.iShotsFired, 4)
+                    _shots   = _u32(_shots_r, 0) if _shots_r else 0
+                    if _shots > 1:
+                        _pp,_py2 = loc.get("punch",(0.0,0.0))
+                        _ca = pm.read_vec2(_lp + off.angEyeAngles)
+                        _np = max(-89.0,min(89.0,_ca[0]-_pp*aim_config.rcs_scale))
+                        _ny = _ca[1]-_py2*aim_config.rcs_scale
+                        game.set_view_angle(_np,_ny)
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
                 # Sadece aktif pawn adreslerini cache'de tut
@@ -750,7 +835,6 @@ while True:
             dl.add_text(10, 10, imgui.get_color_u32_rgba(1, 0, 0, 1),
                         "CS2Veil  |  Deaktif")
         lt=local["team"]
-        ak=bool(user32.GetAsyncKeyState(aim_config.hotkey)&0x8000)
         aim_pos=None; max_d=float('inf')
 
         for ent in ents:
@@ -915,58 +999,6 @@ while True:
             fr=math.tan(aim_config.fov/180*math.pi/2)
             pr=math.tan(max(local["fov"],1)/180*math.pi/2)
             dl.add_circle(W/2,H/2,fr/pr*W,imgui.get_color_u32_rgba(*aim_config.fov_color),64,1.0)
-
-        if aim_config.enabled and ak and aim_pos:
-            lx,ly,lz=local["cam"]; ax,ay,az=aim_pos
-            dx,dy,dz=ax-lx,ay-ly,az-lz
-            d2=math.sqrt(dx*dx+dy*dy)
-            if d2 < 0.001: d2=0.001
-
-            # Hedef acilari hesapla
-            target_yaw   = math.atan2(dy,dx)*57.295779513
-            target_pitch = -math.atan2(dz,d2)*57.295779513
-
-            # Punch kompanzasyonu — recoil hesaba katilir (snapshot'tan, ekstra syscall yok)
-            pp, py2 = local.get("punch", (0.0, 0.0))
-            if pp or py2:
-                target_pitch -= pp  * 2.0
-                target_yaw   -= py2 * 2.0
-            # Mevcut acidan fark
-            cur_pitch, cur_yaw = local["ang"]
-            delta_yaw   = target_yaw   - cur_yaw
-            delta_pitch = target_pitch - cur_pitch
-
-            # Yaw normalizasyonu (-180 ile 180 arasi)
-            while delta_yaw >  180: delta_yaw  -= 360
-            while delta_yaw < -180: delta_yaw  += 360
-
-            # FOV kontrolu (derece cinsinden)
-            norm = math.sqrt(delta_yaw**2 + delta_pitch**2)
-            if norm < aim_config.fov:
-                smooth = max(aim_config.smooth, 0.05)
-                new_yaw   = cur_yaw   + delta_yaw   * (1.0 - smooth)
-                new_pitch = cur_pitch + delta_pitch * (1.0 - smooth)
-                new_pitch = max(-89.0, min(89.0, new_pitch))
-
-                data = struct.pack("<ff", new_pitch, new_yaw)
-                pm.write_memory(game.address.view_angle, data)
-
-                if aim_config.auto_shot:
-                    _triggerbot_shoot()
-
-        # RCS - Recoil Control System (aimbot'tan bagimsiz calisir)
-        if aim_config.rcs_enabled and local:
-            lp_addr = local["pawn"]
-            if lp_addr:
-                shots_raw = pm.read_memory(lp_addr + off.iShotsFired, 4)
-                shots = _u32(shots_raw, 0) if shots_raw else 0
-                if shots > 1:
-                    punch_pitch, punch_yaw = local.get("punch", (0.0, 0.0))
-                    cur_ang = pm.read_vec2(lp_addr + off.angEyeAngles)
-                    new_p = cur_ang[0] - punch_pitch * aim_config.rcs_scale
-                    new_y = cur_ang[1] - punch_yaw   * aim_config.rcs_scale
-                    new_p = max(-89.0, min(89.0, new_p))
-                    game.set_view_angle(new_p, new_y)
 
         # Crosshair
         if any([menu_config.crosshair_recoil, menu_config.crosshair_sniper,
