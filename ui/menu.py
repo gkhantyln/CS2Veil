@@ -49,8 +49,10 @@ class MenuConfig:
         # Her özellik için ayrı renk
         self.crosshair_recoil_color  = [0.0, 1.0, 0.0, 1.0]   # Yeşil
         self.crosshair_sniper_color  = [1.0, 1.0, 1.0, 0.9]   # Beyaz
-        self.crosshair_dynamic_color = [1.0, 0.3, 0.3, 1.0]   # Kırmızı (glow)
-        self.crosshair_dynamic_core  = [1.0, 1.0, 1.0, 1.0]   # Beyaz (merkez)
+        self.crosshair_dynamic_color = [1.0, 0.3, 0.3, 1.0]   # Kırmızı (dış glow)
+        self.crosshair_dynamic_core  = [1.0, 1.0, 1.0, 1.0]   # Beyaz (merkez glow)
+        self.crosshair_dynamic_size  = 5.0                     # Dış glow boyutu (1-20)
+        self.crosshair_dynamic_core_size = 3.0                 # Merkez glow boyutu (1-10)
         self.crosshair_snaplines_color=[1.0, 1.0, 0.0, 0.75]  # Sarı
         # Dış oklar
         self.crosshair_arrows        = False

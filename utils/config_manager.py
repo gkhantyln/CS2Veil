@@ -44,6 +44,8 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "crosshair_sniper_color":   menu_cfg.crosshair_sniper_color,
             "crosshair_dynamic_color":  menu_cfg.crosshair_dynamic_color,
             "crosshair_dynamic_core":   menu_cfg.crosshair_dynamic_core,
+            "crosshair_dynamic_size":   menu_cfg.crosshair_dynamic_size,
+            "crosshair_dynamic_core_size": menu_cfg.crosshair_dynamic_core_size,
             "crosshair_snaplines_color":menu_cfg.crosshair_snaplines_color,
             "crosshair_arrows":         menu_cfg.crosshair_arrows,
             "crosshair_arrows_color":   menu_cfg.crosshair_arrows_color,
@@ -130,6 +132,8 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.crosshair_sniper_color    = v.get("crosshair_sniper_color",    menu_cfg.crosshair_sniper_color)
     menu_cfg.crosshair_dynamic_color   = v.get("crosshair_dynamic_color",   menu_cfg.crosshair_dynamic_color)
     menu_cfg.crosshair_dynamic_core    = v.get("crosshair_dynamic_core",    menu_cfg.crosshair_dynamic_core)
+    menu_cfg.crosshair_dynamic_size    = v.get("crosshair_dynamic_size",    menu_cfg.crosshair_dynamic_size)
+    menu_cfg.crosshair_dynamic_core_size = v.get("crosshair_dynamic_core_size", menu_cfg.crosshair_dynamic_core_size)
     menu_cfg.crosshair_snaplines_color = v.get("crosshair_snaplines_color", menu_cfg.crosshair_snaplines_color)
     menu_cfg.crosshair_arrows          = v.get("crosshair_arrows",          menu_cfg.crosshair_arrows)
     menu_cfg.crosshair_arrows_color    = v.get("crosshair_arrows_color",    menu_cfg.crosshair_arrows_color)

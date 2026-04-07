@@ -402,51 +402,43 @@ def draw_crosshair(dl, local, ents):
     if menu_config.crosshair_arrows:
         ar, ag, ab, aa = menu_config.crosshair_arrows_color
         lt = local["team"]
-        # FOV çemberi yarıçapını hesapla (aim_config.fov kullan, yoksa sabit)
-        fov_r  = math.tan(aim_config.fov / 180.0 * math.pi / 2.0)
-        pawn_r = math.tan(max(local.get("fov", 90), 1) / 180.0 * math.pi / 2.0)
-        radius = (fov_r / pawn_r * W) if pawn_r > 0 else W * 0.15
-        radius = max(60.0, min(radius, W * 0.45))  # min 60px, max ekranın yarısı
-        arrow_len  = 10.0
-        arrow_wing = 4.0
+        arrow_len  = 8.0
+        arrow_wing = 3.0
 
         for ent in ents:
             if menu_config.team_check and lt >= 2 and ent["team"] == lt:
                 continue
-            hp  = ent["hp"]
-            pos = ent.get("pos")
-            if not pos:
+            hp   = ent["hp"]
+            foot = ent.get("foot")
+            if not foot:
                 continue
+            fx, fy = foot
 
-            # Düşmanın ekrandaki yönünü hesapla (kamera pozisyonundan)
-            lx, ly, lz = local.get("cam", local.get("pos", (0,0,0)))
-            ex, ey, ez = pos
-            dx, dy = ex - lx, ey - ly
-            if abs(dx) < 0.01 and abs(dy) < 0.01:
+            # Ekran merkezinden düşmanın ayağına yön vektörü
+            dx = fx - cx
+            dy = fy - cy
+            dist = math.sqrt(dx*dx + dy*dy)
+            if dist < 1.0:
                 continue
-            angle = math.atan2(dy, dx)  # dünya yönü
+            nx, ny = dx / dist, dy / dist  # normalize
 
-            # Ekran yönüne çevir: CS2'de yaw 0 = +X, ekranda sağ
-            # local yaw'ı çıkar
-            local_yaw = math.radians(local["ang"][1])
-            screen_angle = angle - local_yaw - math.pi / 2.0
+            # Ok ucu: düşmanın ayağından biraz önce
+            offset = 18.0  # ayaktan ne kadar uzakta
+            tip_x = fx - nx * offset
+            tip_y = fy - ny * offset
 
-            # Ok ucu FOV çemberi üzerinde
-            tip_x = cx + math.cos(screen_angle) * radius
-            tip_y = cy + math.sin(screen_angle) * radius
+            # Ok kuyruğu
+            base_x = tip_x - nx * arrow_len
+            base_y = tip_y - ny * arrow_len
 
-            # Ok gövdesi (içe doğru)
-            base_x = cx + math.cos(screen_angle) * (radius - arrow_len)
-            base_y = cy + math.sin(screen_angle) * (radius - arrow_len)
+            # Kanatlar (perpendicular)
+            px, py = -ny, nx
+            lx2 = base_x + px * arrow_wing
+            ly2 = base_y + py * arrow_wing
+            rx2 = base_x - px * arrow_wing
+            ry2 = base_y - py * arrow_wing
 
-            # Ok kanatları
-            perp = screen_angle + math.pi / 2.0
-            lx2 = base_x + math.cos(perp) * arrow_wing
-            ly2 = base_y + math.sin(perp) * arrow_wing
-            rx2 = base_x - math.cos(perp) * arrow_wing
-            ry2 = base_y - math.sin(perp) * arrow_wing
-
-            # HP'ye göre renk: başlangıç rengi → kırmızı
+            # HP'ye göre renk
             t = max(0.0, min(1.0, hp / 100.0))
             fr = ar * t + 1.0 * (1.0 - t)
             fg = ag * t + 0.0 * (1.0 - t)
@@ -454,10 +446,8 @@ def draw_crosshair(dl, local, ents):
             col  = imgui.get_color_u32_rgba(fr, fg, fb, aa)
             colb = imgui.get_color_u32_rgba(0, 0, 0, aa * 0.5)
 
-            # Outline
             dl.add_triangle_filled(tip_x, tip_y, lx2, ly2, rx2, ry2, colb)
-            # Ok üçgeni
-            dl.add_triangle(tip_x, tip_y, lx2, ly2, rx2, ry2, col, 1.5)
+            dl.add_triangle_filled(tip_x, tip_y, lx2, ly2, rx2, ry2, col)
 
     # ── Sniper Cross ─────────────────────────────────────────────────────
     if menu_config.crosshair_sniper:
@@ -475,50 +465,42 @@ def draw_crosshair(dl, local, ents):
         dl.add_line(cx, cy+gap,  cx, cy+size, col,  1.5)
         dl.add_circle_filled(cx, cy, 1.5, col)
 
-    # ── Dynamic Cross (Glow'lu) ──────────────────────────────────────────
+    # ── Dynamic Cross (Nokta + Glow) ─────────────────────────────────────
     if menu_config.crosshair_dynamic:
         lp_addr = local.get("pawn")
         shots = pm.read_i32(lp_addr + off.iShotsFired) if lp_addr else 0
-        target_size = 3.0 if shots == 0 else min(3.0 + shots * 1.5, 18.0)
-        _dyn_cross_size += (target_size - _dyn_cross_size) * 0.15
-        s   = _dyn_cross_size
-        gap = max(2.0, s * 0.3)
+        speed = min(shots * 30.0, 250.0)
 
-        gr, gg, gb, ga = menu_config.crosshair_dynamic_color   # glow rengi
-        wr, wg, wb, wa = menu_config.crosshair_dynamic_core    # merkez rengi
+        # Dış glow boyutu
+        base_s = menu_config.crosshair_dynamic_size * 0.3
+        max_s  = menu_config.crosshair_dynamic_size
+        target_size = base_s if speed < 10 else base_s + (max_s - base_s) * min(speed / 250.0, 1.0)
+        _dyn_cross_size += (target_size - _dyn_cross_size) * 0.12
+        s = max(1.0, _dyn_cross_size)
 
-        # Glow katmanları (3 geçiş, dıştan içe azalan alpha)
-        for i in range(3, 0, -1):
-            glow_a = ga * (0.15 * i)
-            gcol = imgui.get_color_u32_rgba(gr, gg, gb, glow_a)
-            gs = s + i * 3
-            gg2 = gap - i * 0.5
-            dl.add_line(cx-gs-gg2, cy, cx-gg2, cy, gcol, 4.0 + i)
-            dl.add_line(cx+gg2,    cy, cx+gs+gg2, cy, gcol, 4.0 + i)
-            dl.add_line(cx, cy-gs-gg2, cx, cy-gg2, gcol, 4.0 + i)
-            dl.add_line(cx, cy+gg2,    cx, cy+gs+gg2, gcol, 4.0 + i)
+        # Merkez glow boyutu (bağımsız)
+        cs = max(0.5, menu_config.crosshair_dynamic_core_size)
 
-        # Ana çizgiler
-        col  = imgui.get_color_u32_rgba(gr, gg, gb, ga)
-        colb = imgui.get_color_u32_rgba(0, 0, 0, ga * 0.5)
-        dl.add_line(cx-s-gap, cy, cx-gap, cy, colb, 3.0)
-        dl.add_line(cx+gap,   cy, cx+s+gap, cy, colb, 3.0)
-        dl.add_line(cx, cy-s-gap, cx, cy-gap, colb, 3.0)
-        dl.add_line(cx, cy+gap,   cx, cy+s+gap, colb, 3.0)
-        dl.add_line(cx-s-gap, cy, cx-gap, cy, col, 1.5)
-        dl.add_line(cx+gap,   cy, cx+s+gap, cy, col, 1.5)
-        dl.add_line(cx, cy-s-gap, cx, cy-gap, col, 1.5)
-        dl.add_line(cx, cy+gap,   cx, cy+s+gap, col, 1.5)
+        gr, gg, gb, ga = menu_config.crosshair_dynamic_color
+        wr, wg, wb, wa = menu_config.crosshair_dynamic_core
 
-        # Merkez glow
-        core = imgui.get_color_u32_rgba(wr, wg, wb, wa * 0.4)
-        dl.add_circle_filled(cx, cy, s * 0.8, core)
-        # Dış halka
-        ring = imgui.get_color_u32_rgba(gr, gg, gb, ga * 0.5)
-        dl.add_circle(cx, cy, s + gap + 2, ring, 32, 1.0)
-        # Merkez nokta
+        # Dış radial glow — 6 katman, dıştan içe (halka yok)
+        for i in range(6, 0, -1):
+            gs     = s + i * s * 0.5
+            glow_a = ga * (i / 6.0) * 0.55
+            gcol   = imgui.get_color_u32_rgba(gr, gg, gb, glow_a)
+            dl.add_circle_filled(cx, cy, gs, gcol, 48)
+
+        # Merkez beyaz glow — 4 katman, bağımsız boyut
+        for i in range(4, 0, -1):
+            ws   = cs + i * cs * 0.6
+            wa2  = wa * (i / 4.0) * 0.6
+            wcol = imgui.get_color_u32_rgba(wr, wg, wb, wa2)
+            dl.add_circle_filled(cx, cy, ws, wcol, 24)
+
+        # Merkez nokta (tam opak)
         center = imgui.get_color_u32_rgba(wr, wg, wb, wa)
-        dl.add_circle_filled(cx, cy, max(1.5, s * 0.2), center)
+        dl.add_circle_filled(cx, cy, max(1.0, cs * 0.5), center, 16)
 
     # ── Recoil Cross ─────────────────────────────────────────────────────
     if menu_config.crosshair_recoil:
@@ -693,7 +675,7 @@ while True:
             _,menu_config.crosshair_recoil = imgui.checkbox("Recoil Cross##rc", menu_config.crosshair_recoil)
             if menu_config.crosshair_recoil:
                 imgui.same_line()
-                ch,v = imgui.color_edit4("##rcol", *menu_config.crosshair_recoil_color, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("##rcol", *menu_config.crosshair_recoil_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_recoil_color = list(v)
                 imgui.same_line(); imgui.text_colored("Geri tepme gostergesi", 0.6,0.6,0.6,1)
 
@@ -701,7 +683,7 @@ while True:
             _,menu_config.crosshair_sniper = imgui.checkbox("Sniper Cross##sc", menu_config.crosshair_sniper)
             if menu_config.crosshair_sniper:
                 imgui.same_line()
-                ch,v = imgui.color_edit4("##scol", *menu_config.crosshair_sniper_color, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("##scol", *menu_config.crosshair_sniper_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_sniper_color = list(v)
                 imgui.same_line(); imgui.text_colored("Ince arti nishangah", 0.6,0.6,0.6,1)
 
@@ -709,20 +691,24 @@ while True:
             _,menu_config.crosshair_dynamic = imgui.checkbox("Dynamic Cross##dc", menu_config.crosshair_dynamic)
             if menu_config.crosshair_dynamic:
                 imgui.same_line()
-                ch,v = imgui.color_edit4("Glow##dcol", *menu_config.crosshair_dynamic_color, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("Glow##dcol", *menu_config.crosshair_dynamic_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_dynamic_color = list(v)
                 imgui.same_line()
-                ch,v = imgui.color_edit4("Merkez##dcore", *menu_config.crosshair_dynamic_core, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("Merkez##dcore", *menu_config.crosshair_dynamic_core, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_dynamic_core = list(v)
-                imgui.same_line(); imgui.text_colored("Glow + Merkez rengi", 0.6,0.6,0.6,1)
+                imgui.same_line(); imgui.text_colored("Glow + Merkez (A = Opaklık)", 0.6,0.6,0.6,1)
+                _,menu_config.crosshair_dynamic_size = imgui.slider_float(
+                    "Dis Glow Boyutu##dynsize", menu_config.crosshair_dynamic_size, 1.0, 20.0, "%.1f")
+                _,menu_config.crosshair_dynamic_core_size = imgui.slider_float(
+                    "Merkez Boyutu##coresize", menu_config.crosshair_dynamic_core_size, 1.0, 10.0, "%.1f")
 
             # Snap Lines
             _,menu_config.crosshair_snaplines = imgui.checkbox("Snap Lines##sl", menu_config.crosshair_snaplines)
             if menu_config.crosshair_snaplines:
                 imgui.same_line()
-                ch,v = imgui.color_edit4("##slcol", *menu_config.crosshair_snaplines_color, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("##slcol", *menu_config.crosshair_snaplines_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_snaplines_color = list(v)
-                imgui.same_line(); imgui.text_colored("Renk + Opaklık (A)", 0.6,0.6,0.6,1)
+                imgui.same_line(); imgui.text_colored("Renk (A = Opaklık)", 0.6,0.6,0.6,1)
 
             imgui.separator()
 
@@ -730,10 +716,10 @@ while True:
             _,menu_config.crosshair_arrows = imgui.checkbox("Dis Oklar##ar", menu_config.crosshair_arrows)
             if menu_config.crosshair_arrows:
                 imgui.same_line()
-                ch,v = imgui.color_edit4("##arcol", *menu_config.crosshair_arrows_color, flags=imgui.COLOR_EDIT_NO_INPUTS)
+                ch,v = imgui.color_edit4("##arcol", *menu_config.crosshair_arrows_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_arrows_color = list(v)
-                imgui.same_line(); imgui.text_colored("Baslangic rengi + Opaklık (A)", 0.6,0.6,0.6,1)
-                imgui.text_colored("  FOV cemberi etrafinda dusman yonu — HP'ye gore renk degisir", 0.5,0.5,0.5,1)
+                imgui.same_line(); imgui.text_colored("Baslangic rengi (HP'ye gore kirmiziya kayar)", 0.6,0.6,0.6,1)
+                imgui.text_colored("  Renk secicide A = Opaklık", 0.5,0.5,0.5,1)
 
             imgui.end_tab_item()
 
@@ -971,7 +957,8 @@ while True:
 
         # Crosshair
         if any([menu_config.crosshair_recoil, menu_config.crosshair_sniper,
-                menu_config.crosshair_dynamic, menu_config.crosshair_snaplines]):
+                menu_config.crosshair_dynamic, menu_config.crosshair_snaplines,
+                menu_config.crosshair_arrows]):
             draw_crosshair(dl, local, ents)
 
         # Triggerbot - crosshair'daki dusmana ates et
