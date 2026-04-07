@@ -915,6 +915,15 @@ while True:
             target_yaw   = math.atan2(dy,dx)*57.295779513
             target_pitch = -math.atan2(dz,d2)*57.295779513
 
+            # Punch kompanzasyonu — recoil hesaba katilir
+            lp_addr = local["pawn"]
+            if lp_addr:
+                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
+                if punch_raw and len(punch_raw) >= 8:
+                    pp, py2 = _f2(punch_raw, 0)
+                    target_pitch -= pp  * 2.0
+                    target_yaw   -= py2 * 2.0
+
             # Mevcut acidan fark
             cur_pitch, cur_yaw = local["ang"]
             delta_yaw   = target_yaw   - cur_yaw
@@ -932,7 +941,6 @@ while True:
                 new_pitch = cur_pitch + delta_pitch * (1.0 - smooth)
                 new_pitch = max(-89.0, min(89.0, new_pitch))
 
-                # Sadece dwViewAngles'a yaz — pawn offset'e yazmak crash ettiriyor
                 data = struct.pack("<ff", new_pitch, new_yaw)
                 pm.write_memory(game.address.view_angle, data)
 
