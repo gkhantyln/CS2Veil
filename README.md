@@ -15,6 +15,10 @@
   <img src="cs2veil.png" alt="CS2Veil"/>
 </p>
 
+<p align="center">
+  <img src="cs2veil_game.png" alt="CS2Veil"/>
+</p>
+
 
 
 ---
