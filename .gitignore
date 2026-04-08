@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 *.pyo
-config/
 kmbox.json
 vmm.dll
 leechcore.dll
@@ -11,3 +10,5 @@ imgui.ini
 debug/
 tests/
 DeadSight/
+config/_last.txt
+config/taylan.json
