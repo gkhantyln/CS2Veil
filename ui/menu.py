@@ -42,6 +42,12 @@ class MenuConfig:
         self.no_flash           = False  # No Flash
         self.flash_max_alpha    = 180    # 0=tam flash, 255=hic flash yok
         self.stream_proof       = False  # OBS/ekran paylasimi gizleme
+        # Nokta ESP
+        self.show_dot_esp       = False
+        self.dot_esp_color      = [1.0, 1.0, 1.0, 1.0]  # Beyaz
+        self.dot_esp_size       = 3.0
+        # BHop
+        self.bhop_enabled       = False
         # Crosshair
         self.crosshair_recoil        = False
         self.crosshair_sniper        = False

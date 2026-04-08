@@ -150,6 +150,7 @@ Config kayıt, yükleme ve silme
 |---------|---------|
 | **Kutu ESP** | Düşmanların etrafına kutu çizer. HP'ye göre renk değişir (yeşil→sarı→kırmızı) |
 | **İskelet ESP** | Düşmanların kemik yapısını gösterir. HP'ye göre renk değişir |
+| **Nokta ESP** | Düşmanın gövde ortasına küçük nokta çizer. Renk ve boyut ayarlanabilir |
 | **Can Barı** | 4 konum seçeneği: Sol, Üst, Sağ, Alt. İnce 3px bar |
 | **Oyuncu Adı** | Üst veya alt konumda, 8-24px arası boyut ayarı |
 | **Mesafe** | Düşmana olan mesafeyi metre cinsinden gösterir |
@@ -213,6 +214,16 @@ Config kayıt, yükleme ve silme
 - Config'e kaydedilir, program başlarken otomatik uygulanır
 
 > **Not:** Bu özellik `SetWindowDisplayAffinity` Windows API'si kullanır. Oyun içi anti-cheat ile ilgisi yoktur, sadece ekran yakalama araçlarını etkiler.
+
+---
+
+### Bunny Hop (BHop)
+
+`Ayarlar → Bunny Hop` seçeneğini açın.
+
+- Space tuşunu basılı tutunca yere değdiğiniz anda otomatik zıplar
+- Hız kaybetmeden sürekli zıplama sağlar
+- `dwForceJump` offset'i üzerinden çalışır, 333Hz'de kontrol edilir
 
 ---
 

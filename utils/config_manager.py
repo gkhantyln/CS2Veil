@@ -36,6 +36,9 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "show_line_to_enemy":    menu_cfg.show_line_to_enemy,
             "line_to_enemy_color":   menu_cfg.line_to_enemy_color,
             "esp_fov_only":          menu_cfg.esp_fov_only,
+            "show_dot_esp":          menu_cfg.show_dot_esp,
+            "dot_esp_color":         menu_cfg.dot_esp_color,
+            "dot_esp_size":          menu_cfg.dot_esp_size,
             "crosshair_recoil":      menu_cfg.crosshair_recoil,
             "crosshair_sniper":      menu_cfg.crosshair_sniper,
             "crosshair_dynamic":     menu_cfg.crosshair_dynamic,
@@ -55,6 +58,7 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "no_flash":           menu_cfg.no_flash,
             "flash_max_alpha":    menu_cfg.flash_max_alpha,
             "stream_proof":       menu_cfg.stream_proof,
+            "bhop_enabled":       menu_cfg.bhop_enabled,
         },
         "aimbot": {
             "enabled":            aim_cfg.enabled,
@@ -125,6 +129,9 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.show_line_to_enemy  = v.get("show_line_to_enemy", menu_cfg.show_line_to_enemy)
     menu_cfg.line_to_enemy_color = v.get("line_to_enemy_color",menu_cfg.line_to_enemy_color)
     menu_cfg.esp_fov_only        = v.get("esp_fov_only",       menu_cfg.esp_fov_only)
+    menu_cfg.show_dot_esp        = v.get("show_dot_esp",        menu_cfg.show_dot_esp)
+    menu_cfg.dot_esp_color       = v.get("dot_esp_color",       menu_cfg.dot_esp_color)
+    menu_cfg.dot_esp_size        = v.get("dot_esp_size",        menu_cfg.dot_esp_size)
     menu_cfg.crosshair_recoil    = v.get("crosshair_recoil",   menu_cfg.crosshair_recoil)
     menu_cfg.crosshair_sniper    = v.get("crosshair_sniper",   menu_cfg.crosshair_sniper)
     menu_cfg.crosshair_dynamic   = v.get("crosshair_dynamic",  menu_cfg.crosshair_dynamic)
@@ -144,6 +151,7 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.no_flash            = s.get("no_flash",           menu_cfg.no_flash)
     menu_cfg.flash_max_alpha     = s.get("flash_max_alpha",    menu_cfg.flash_max_alpha)
     menu_cfg.stream_proof        = s.get("stream_proof",       menu_cfg.stream_proof)
+    menu_cfg.bhop_enabled        = s.get("bhop_enabled",       menu_cfg.bhop_enabled)
 
     a = data.get("aimbot", {})
     aim_cfg.enabled              = a.get("enabled",            aim_cfg.enabled)

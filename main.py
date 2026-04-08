@@ -369,8 +369,7 @@ def _entity_loop():
                         del _weapon_cache[k]
 
             # No Flash: flash duration'i sifirla veya sinirla
-            if menu_config.no_flash:
-                # Tamamen kapat
+            if menu_config.no_flash:                # Tamamen kapat
                 pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", 0.0))
             elif menu_config.flash_max_alpha < 255:
                 # Flash alpha sinirla: flFlashDuration max degerini kisalt
@@ -382,6 +381,20 @@ def _entity_loop():
                     cur = struct.unpack_from("<f", raw_flash)[0]
                     if cur > max_dur:
                         pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", max_dur))
+
+            # BHop: Space basili + yerde ise zıpla
+            if menu_config.bhop_enabled:
+                import ctypes as _bct
+                _u32api = _bct.WinDLL("user32")
+                if _u32api.GetAsyncKeyState(0x20) & 0x8000:  # VK_SPACE
+                    _flags = _i32(lp_buf, off.fFlags) if lp_buf else 0
+                    if _flags & 0x1:  # FL_ONGROUND
+                        pm.write_memory(game.address.force_jump,
+                                        struct.pack("<I", 65537))
+                    else:
+                        pm.write_memory(game.address.force_jump,
+                                        struct.pack("<I", 256))
+
         except Exception: pass
         time.sleep(0.003)  # ~333fps entity update
 
@@ -668,6 +681,14 @@ while True:
             if ch: menu_config.line_to_enemy_color=list(v)
             imgui.separator()
             _,menu_config.esp_fov_only=imgui.checkbox("Sadece FOV icindekiler (FPS+)",menu_config.esp_fov_only)
+            imgui.separator()
+            _,menu_config.show_dot_esp=imgui.checkbox("Nokta ESP##dot",menu_config.show_dot_esp)
+            if menu_config.show_dot_esp:
+                imgui.same_line()
+                ch,v=imgui.color_edit4("##dotcol",*menu_config.dot_esp_color,flags=imgui.COLOR_EDIT_NO_INPUTS|imgui.COLOR_EDIT_ALPHA_PREVIEW)
+                if ch: menu_config.dot_esp_color=list(v)
+                imgui.same_line()
+                _,menu_config.dot_esp_size=imgui.slider_float("Boyut##dotsize",menu_config.dot_esp_size,1.0,10.0,"%.1f")
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Nishan Botu")[0]:
@@ -713,6 +734,9 @@ while True:
 
         if imgui.begin_tab_item("Ayarlar")[0]:
             _,menu_config.team_check=imgui.checkbox("Takim Kontrolu",menu_config.team_check)
+            imgui.separator()
+            _,menu_config.bhop_enabled=imgui.checkbox("Bunny Hop",menu_config.bhop_enabled)
+            imgui.same_line(); imgui.text_colored("Space basili tutunca otomatik ziplama",0.6,0.6,0.6,1)
             imgui.separator()
             ch,menu_config.stream_proof=imgui.checkbox("Stream Proof (OBS Gizle)",menu_config.stream_proof)
             if ch:
@@ -920,6 +944,17 @@ while True:
 
             if menu_config.show_box_esp:
                 dl.add_rect(x1,y1,x2,y2, hp_color(hp, menu_config.box_color), 0, 0, 1.5)
+
+            if menu_config.show_dot_esp:
+                # Gövde ortasına nokta — kutu merkezine
+                dot_cx = (x1+x2)/2
+                dot_cy = (y1+y2)/2
+                dr,dg,db,da = menu_config.dot_esp_color
+                dcol  = imgui.get_color_u32_rgba(dr,dg,db,da)
+                dcolb = imgui.get_color_u32_rgba(0,0,0,da*0.6)
+                ds = menu_config.dot_esp_size
+                dl.add_circle_filled(dot_cx, dot_cy, ds+1, dcolb, 16)
+                dl.add_circle_filled(dot_cx, dot_cy, ds,   dcol,  16)
 
             if menu_config.show_health_bar:
                 bar_w = 3; bar_h = 3
