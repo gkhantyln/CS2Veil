@@ -382,18 +382,15 @@ def _entity_loop():
                     if cur > max_dur:
                         pm.write_memory(lp + off.flFlashDuration, struct.pack("<f", max_dur))
 
-            # BHop: Space basili + yerde ise zıpla
-            if menu_config.bhop_enabled:
-                import ctypes as _bct
-                _u32api = _bct.WinDLL("user32")
-                if _u32api.GetAsyncKeyState(0x20) & 0x8000:  # VK_SPACE
-                    _flags = _i32(lp_buf, off.fFlags) if lp_buf else 0
-                    if _flags & 0x1:  # FL_ONGROUND
-                        pm.write_memory(game.address.force_jump,
-                                        struct.pack("<I", 65537))
-                    else:
-                        pm.write_memory(game.address.force_jump,
-                                        struct.pack("<I", 256))
+            # BHop: Space basili + yerde ise zipla (SendInput ile)
+            if menu_config.bhop_enabled and lp_buf:
+                if user32.GetAsyncKeyState(0x20) & 0x8000:  # VK_SPACE
+                    _flags = _i32(lp_buf, off.fFlags) if off.fFlags and off.fFlags < 0x4000 else 0
+                    if _flags & 0x1:  # FL_ONGROUND = 1 — yerdeyse zıpla
+                        # Space key up + down simüle et
+                        _ki = (ctypes.c_uint32 * 1)(0x20)
+                        user32.keybd_event(0x20, 0, 0x0002, 0)  # KEYUP
+                        user32.keybd_event(0x20, 0, 0x0000, 0)  # KEYDOWN
 
         except Exception: pass
         time.sleep(0.003)  # ~333fps entity update
