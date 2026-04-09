@@ -278,8 +278,7 @@ def _entity_loop():
 
             # ── Aimbot (333Hz) ───────────────────────────────────────────────
             if aim_config.enabled and loc:
-                import ctypes as _ct
-                _ak = bool(_ct.WinDLL("user32").GetAsyncKeyState(aim_config.hotkey) & 0x8000)
+                _ak = bool(user32.GetAsyncKeyState(aim_config.hotkey) & 0x8000)
                 if _ak:
                     _aim_pos = None
                     _max_d   = float('inf')
@@ -617,25 +616,28 @@ def draw_crosshair(dl, local, ents):
 
     # ── Recoil Cross ─────────────────────────────────────────────────────
     if menu_config.crosshair_recoil:
-        pp, py2 = local.get("punch", (0.0, 0.0))
-        # Sadece sol tık basılıyken ve punch anlamlıysa göster
         lp_addr = local.get("pawn")
-        shots = 0
         if lp_addr:
-            shots = pm.read_i32(lp_addr + off.iShotsFired)
-        if shots > 0 and (abs(pp) > 0.05 or abs(py2) > 0.05):
-            cr, cg, cb, ca = menu_config.crosshair_recoil_color
-            mult = (H / 90.0) * 1.5
-            rx = cx + (-py2 * mult)
-            ry = cy + ( pp  * mult)
-            col  = imgui.get_color_u32_rgba(cr, cg, cb, ca)
-            colb = imgui.get_color_u32_rgba(0, 0, 0, ca * 0.6)
-            L = 5
-            dl.add_line(rx-L, ry, rx+L, ry, colb, 3.0)
-            dl.add_line(rx, ry-L, rx, ry+L, colb, 3.0)
-            dl.add_line(rx-L, ry, rx+L, ry, col,  1.5)
-            dl.add_line(rx, ry-L, rx, ry+L, col,  1.5)
-            dl.add_circle_filled(rx, ry, 1.5, col)
+            # Sol tık basılıyken ve punch anlamlıysa göster
+            lmb = bool(user32.GetAsyncKeyState(0x01) & 0x8000)
+            if lmb:
+                punch_raw = pm.read_memory(lp_addr + off.aimPunchAngle, 8)
+                if punch_raw and len(punch_raw) >= 8:
+                    pp, py2 = _f2(punch_raw, 0)
+                    if abs(pp) > 0.1 or abs(py2) > 0.1:
+                        if abs(pp) < 1000 and abs(py2) < 1000:
+                            cr, cg, cb, ca = menu_config.crosshair_recoil_color
+                            mult = (H / 90.0) * 1.5
+                            rx = cx + (-py2 * mult)
+                            ry = cy + ( pp  * mult)
+                            col  = imgui.get_color_u32_rgba(cr, cg, cb, ca)
+                            colb = imgui.get_color_u32_rgba(0, 0, 0, ca * 0.6)
+                            L = 5
+                            dl.add_line(rx-L, ry, rx+L, ry, colb, 3.0)
+                            dl.add_line(rx, ry-L, rx, ry+L, colb, 3.0)
+                            dl.add_line(rx-L, ry, rx+L, ry, col,  1.5)
+                            dl.add_line(rx, ry-L, rx, ry+L, col,  1.5)
+                            dl.add_circle_filled(rx, ry, 1.5, col)
 
 while True:
     mk=bool(user32.GetAsyncKeyState(win32con.VK_INSERT)&0x8000)
