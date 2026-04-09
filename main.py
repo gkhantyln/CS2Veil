@@ -347,19 +347,25 @@ def _entity_loop():
                                 _npt = max(-89.0,min(89.0,_npt))
                                 pm.write_memory(game.address.view_angle,
                                                 struct.pack("<ff",_npt,_nyw))
+                                if aim_config.auto_shot:
+                                    _triggerbot_shoot()
 
             # ── RCS (333Hz) ──────────────────────────────────────────────────
             if aim_config.rcs_enabled and loc:
                 _lp = loc["pawn"]
                 if _lp:
-                    _shots_r = pm.read_memory(_lp + off.iShotsFired, 4)
-                    _shots   = _u32(_shots_r, 0) if _shots_r else 0
-                    if _shots > 1:
-                        _pp,_py2 = loc.get("punch",(0.0,0.0))
-                        _ca = pm.read_vec2(_lp + off.angEyeAngles)
-                        _np = max(-89.0,min(89.0,_ca[0]-_pp*aim_config.rcs_scale))
-                        _ny = _ca[1]-_py2*aim_config.rcs_scale
-                        game.set_view_angle(_np,_ny)
+                    # Sadece sol tık basılıyken çalış
+                    if user32.GetAsyncKeyState(0x01) & 0x8000:
+                        _shots_r = pm.read_memory(_lp + off.iShotsFired, 4)
+                        _shots   = _u32(_shots_r, 0) if _shots_r else 0
+                        if _shots > 1:
+                            _pp,_py2 = loc.get("punch",(0.0,0.0))
+                            # Punch sıfırsa RCS uygulama
+                            if abs(_pp) > 0.01 or abs(_py2) > 0.01:
+                                _ca = pm.read_vec2(_lp + off.angEyeAngles)
+                                _np = max(-89.0,min(89.0,_ca[0]-_pp*aim_config.rcs_scale))
+                                _ny = _ca[1]-_py2*aim_config.rcs_scale
+                                game.set_view_angle(_np,_ny)
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
                 # Sadece aktif pawn adreslerini cache'de tut
@@ -612,7 +618,12 @@ def draw_crosshair(dl, local, ents):
     # ── Recoil Cross ─────────────────────────────────────────────────────
     if menu_config.crosshair_recoil:
         pp, py2 = local.get("punch", (0.0, 0.0))
-        if abs(pp) > 0.05 or abs(py2) > 0.05:
+        # Sadece sol tık basılıyken ve punch anlamlıysa göster
+        lp_addr = local.get("pawn")
+        shots = 0
+        if lp_addr:
+            shots = pm.read_i32(lp_addr + off.iShotsFired)
+        if shots > 0 and (abs(pp) > 0.05 or abs(py2) > 0.05):
             cr, cg, cb, ca = menu_config.crosshair_recoil_color
             mult = (H / 90.0) * 1.5
             rx = cx + (-py2 * mult)
