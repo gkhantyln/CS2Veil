@@ -344,7 +344,9 @@ def run_frame():
 
         if menu_config.show_box_esp:
             col = imgui.get_color_u32_rgba(*menu_config.box_color)
-            draw_list.add_rect(x1, y1, x2, y2, col, 0, 0, 1.3)
+            # box_type: 0=Normal (1.3), 1=İnce (0.5)
+            box_thickness = 0.5 if menu_config.box_type == 1 else 1.3
+            draw_list.add_rect(x1, y1, x2, y2, col, 0, 0, box_thickness)
 
         if menu_config.show_health_bar:
             if menu_config.health_bar_type == 0:
