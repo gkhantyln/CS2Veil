@@ -32,14 +32,21 @@ class CView:
             m = [row[:] for row in self.matrix]  # snapshot al
 
         w = m[3][0]*x + m[3][1]*y + m[3][2]*z + m[3][3]
-        if w <= 0.01:
+        # Near-clip: 0.001'e düşürüldü — eskiden 0.01 idi.
+        # Çok yakın düşmanlarda w küçük kalıyor ve None dönüyordu,
+        # bu yüzden ESP ve aimbot hedefi kaybediyordu.
+        if w <= 0.001:
             return None
 
         out_x = sx + (m[0][0]*x + m[0][1]*y + m[0][2]*z + m[0][3]) / w * sx
         out_y = sy - (m[1][0]*x + m[1][1]*y + m[1][2]*z + m[1][3]) / w * sy
 
-        # Cok uzak koordinatlari reddet
-        if abs(out_x) > self.screen_w * 5 or abs(out_y) > self.screen_h * 5:
+        import math
+        if not (math.isfinite(out_x) and math.isfinite(out_y)):
+            return None
+
+        # Uzak koordinat reddi — yakın düşman için sınırı genişlettik (5x → 10x)
+        if abs(out_x) > self.screen_w * 10 or abs(out_y) > self.screen_h * 10:
             return None
 
         return (out_x, out_y)

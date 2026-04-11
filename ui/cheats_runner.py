@@ -259,7 +259,12 @@ def run_frame():
             continue
 
         if foot is None:
-            continue
+            # Yakın düşmanda world_to_screen None dönebilir.
+            # pos'tan fallback screen hesapla — ekran merkezine yakın varsay.
+            foot = game.view.world_to_screen(pos)
+            if foot is None:
+                # Hâlâ None ise entity'yi atla ama aimbot için pos'u sakla
+                foot = (sw / 2, sh / 2)  # merkez fallback
         fx, fy = foot
 
         if not (-sw < fx < sw*2 and -sh < fy < sh*2):
@@ -301,15 +306,30 @@ def run_frame():
 
         box_h = max(y2-y1, 10)
 
-        # Aimbot hedef
-        if head_screen:
-            d = math.sqrt((head_screen[0]-sw/2)**2 + (head_screen[1]-sh/2)**2)
+        # Aimbot hedef — head_screen None olsa bile açı farkıyla seç
+        if len(bones) > BONEINDEX.head:
+            bone_pos = bones[BONEINDEX.head]["pos"]
+            if head_screen:
+                d = math.sqrt((head_screen[0]-sw/2)**2 + (head_screen[1]-sh/2)**2)
+            else:
+                # Yakın düşman: kamera açısı ile hedef arasındaki açı farkından mesafe
+                lx_c, ly_c, lz_c = local["cam"]
+                bx, by, bz = bone_pos
+                dx_b = bx - lx_c; dy_b = by - ly_c; dz_b = bz - lz_c
+                d2d = math.sqrt(dx_b**2 + dy_b**2) or 0.001
+                pitch_to = -math.degrees(math.atan2(dz_b, d2d))
+                yaw_to   =  math.degrees(math.atan2(dy_b, dx_b))
+                cur_pitch, cur_yaw = local["ang"]
+                dp = abs(pitch_to - cur_pitch)
+                dy_ang = abs((yaw_to - cur_yaw + 180) % 360 - 180)
+                # derece → pixel (yaklaşık)
+                deg_per_px = (aim_config.fov) / (sw / 2)
+                d = math.sqrt((dp / deg_per_px)**2 + (dy_ang / deg_per_px)**2)
             if d < max_dist:
                 max_dist = d
-                if len(bones) > BONEINDEX.head:
-                    ap = list(bones[BONEINDEX.head]["pos"])
-                    ap[2] -= 1.0
-                    aim_pos = tuple(ap)
+                ap = list(bone_pos)
+                ap[2] -= 1.0
+                aim_pos = tuple(ap)
 
         # ---- Cizim ----
         if menu_config.show_bone_esp:
@@ -404,23 +424,36 @@ def _run_aimbot(local, aim_pos):
     lx,ly,lz = local["cam"]
     ax,ay,az = aim_pos
     dx,dy,dz = ax-lx, ay-ly, az-lz
-    d2 = math.sqrt(dx*dx+dy*dy)
+    d2 = math.sqrt(dx*dx+dy*dy) or 0.001
     yaw   = math.atan2(dy,dx)*57.295779513 - local["ang"][1]
     pitch = -math.atan2(dz,d2)*57.295779513 - local["ang"][0]
     norm  = math.sqrt(yaw*yaw+pitch*pitch)
     if norm >= aim_config.fov: return
 
-    screen = game.view.world_to_screen(aim_pos)
-    if not screen: return
     sw,sh = game.view.screen_w, game.view.screen_h
     cx,cy = sw/2, sh/2
-    sx,sy = screen
+
+    screen = game.view.world_to_screen(aim_pos)
+    if screen:
+        # Normal projeksiyon — ekran koordinatlarıyla hareket
+        sx,sy = screen
+    else:
+        # Yakın düşman: açı farkından doğrudan mouse delta hesapla
+        # yaw/pitch delta'yı pixel'e çevir
+        pawn_fov = max(local.get("fov", 90), 1)
+        fov_rad  = math.tan(pawn_fov / 180.0 * math.pi / 2.0)
+        px_per_deg = (sw / 2.0) / (pawn_fov / 2.0)
+        sx = cx + yaw   * px_per_deg
+        sy = cy + pitch * px_per_deg
+
     fs = aim_config.fake_smooth or 1.5
     tx = (sx-cx)/fs if sx!=cx else 0.0
     ty = (sy-cy)/fs if sy!=cy else 0.0
-    if tx+cx>sw or tx+cx<0: tx=0.0
-    if ty+cy>sh or ty+cy<0: ty=0.0
-    sf = 1.0+(1.0-norm/aim_config.fov)
+    # Clamp — çok büyük hareket yapma
+    max_move = sw * 0.3
+    tx = max(-max_move, min(max_move, tx))
+    ty = max(-max_move, min(max_move, ty))
+    sf = 1.0+(1.0-norm/max(aim_config.fov, 0.001))
     tx/=fs*sf; ty/=fs*sf
     if aim_config.smooth>0: kmbox.move_auto(tx,ty,60*aim_config.smooth)
     else: kmbox.move(tx,ty)

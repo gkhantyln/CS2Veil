@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Create HWID Spoofer Project",
+  "description": "Create HWID Spoofer project structure with backup system",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": ""
+  }
+}
