@@ -30,7 +30,8 @@ class MenuConfig:
         self.player_name_pos    = 0      # 0=Ust, 1=Alt
         self.player_name_size   = 13     # Yazi boyutu (px)
         self.show_line_to_enemy = False
-        self.box_type           = 0
+        self.box_thickness      = 1.0   # 0.1 - 2.0
+        self.bone_thickness     = 1.0   # 0.1 - 2.0
         self.health_bar_type    = 0
         self.bone_color         = [1.0, 1.0, 1.0, 1.0]
         self.box_color          = [1.0, 1.0, 1.0, 1.0]
@@ -83,15 +84,16 @@ def render_menu():
         changed, val = imgui.color_edit4("Kutu Rengi##box", *menu_config.box_color,
                                           flags=imgui.COLOR_EDIT_NO_INPUTS)
         if changed: menu_config.box_color = list(val)
-
-        _, menu_config.box_type = imgui.combo("Kutu Tipi", menu_config.box_type,
-                                               ["Normal", "Ince"])
+        _, menu_config.box_thickness = imgui.slider_float(
+            "Kutu Kalinligi", menu_config.box_thickness, 0.1, 2.0, "%.1f")
 
         _, menu_config.show_bone_esp = imgui.checkbox("Iskelet ESP", menu_config.show_bone_esp)
         imgui.same_line()
         changed, val = imgui.color_edit4("Iskelet Rengi##bone", *menu_config.bone_color,
                                           flags=imgui.COLOR_EDIT_NO_INPUTS)
         if changed: menu_config.bone_color = list(val)
+        _, menu_config.bone_thickness = imgui.slider_float(
+            "Iskelet Kalinligi", menu_config.bone_thickness, 0.1, 2.0, "%.1f")
 
         _, menu_config.show_eye_ray = imgui.checkbox("Bakis Cizgisi", menu_config.show_eye_ray)
         imgui.same_line()

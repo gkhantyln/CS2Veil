@@ -19,7 +19,8 @@ def save_config(filename: str, cfg, aim_cfg, trigger_cfg, radar_cfg):
         f"ShowEyeRay {int(cfg.show_eye_ray)}",
         f"ShowPlayerName {int(cfg.show_player_name)}",
         f"ShowLineToEnemy {int(cfg.show_line_to_enemy)}",
-        f"BoxType {cfg.box_type}",
+        f"BoxThickness {cfg.box_thickness}",
+        f"BoneThickness {cfg.bone_thickness}",
         f"HealthBarType {cfg.health_bar_type}",
         f"BoneColor {cfg.bone_color[0]} {cfg.bone_color[1]} {cfg.bone_color[2]} {cfg.bone_color[3]}",
         f"BoxColor {cfg.box_color[0]} {cfg.box_color[1]} {cfg.box_color[2]} {cfg.box_color[3]}",
@@ -81,7 +82,10 @@ def load_config(filename: str, cfg, aim_cfg, trigger_cfg, radar_cfg):
             elif key == "ShowEyeRay":      cfg.show_eye_ray        = b(val)
             elif key == "ShowPlayerName":  cfg.show_player_name    = b(val)
             elif key == "ShowLineToEnemy": cfg.show_line_to_enemy  = b(val)
-            elif key == "BoxType":         cfg.box_type            = i(val)
+            elif key == "BoxThickness":    cfg.box_thickness       = fl(val)
+            elif key == "BoneThickness":   cfg.bone_thickness      = fl(val)
+            # Eski format geriye dönük uyumluluk
+            elif key == "BoxType":         cfg.box_thickness       = 0.5 if i(val) == 1 else 1.0
             elif key == "HealthBarType":   cfg.health_bar_type     = i(val)
             elif key == "BoneColor":       cfg.bone_color          = color(val)
             elif key == "BoxColor":        cfg.box_color           = color(val)

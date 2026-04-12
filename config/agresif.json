@@ -1,10 +1,19 @@
 {
   "visuals": {
     "show_box_esp": true,
-    "box_color": [1.0, 0.2, 0.2, 1.0],
-    "box_type": 0,
+    "box_color": [
+      1.0,
+      0.2,
+      0.2,
+      1.0
+    ],
     "show_bone_esp": true,
-    "bone_color": [1.0, 0.3, 0.3, 0.9],
+    "bone_color": [
+      1.0,
+      0.3,
+      0.3,
+      0.9
+    ],
     "show_health_bar": true,
     "health_bar_type": 0,
     "show_player_name": true,
@@ -12,26 +21,73 @@
     "player_name_size": 11,
     "show_distance": true,
     "show_eye_ray": false,
-    "eye_ray_color": [1.0, 0.0, 0.0, 1.0],
+    "eye_ray_color": [
+      1.0,
+      0.0,
+      0.0,
+      1.0
+    ],
     "show_line_to_enemy": false,
-    "line_to_enemy_color": [1.0, 1.0, 1.0, 0.86],
+    "line_to_enemy_color": [
+      1.0,
+      1.0,
+      1.0,
+      0.86
+    ],
     "esp_fov_only": false,
     "show_dot_esp": true,
-    "dot_esp_color": [1.0, 0.0, 0.0, 1.0],
+    "dot_esp_color": [
+      1.0,
+      0.0,
+      0.0,
+      1.0
+    ],
     "dot_esp_size": 4.0,
     "crosshair_recoil": true,
     "crosshair_sniper": false,
     "crosshair_dynamic": false,
     "crosshair_snaplines": true,
-    "crosshair_recoil_color": [1.0, 0.2, 0.2, 1.0],
-    "crosshair_sniper_color": [1.0, 1.0, 1.0, 0.9],
-    "crosshair_dynamic_color": [1.0, 0.3, 0.3, 1.0],
-    "crosshair_dynamic_core": [1.0, 1.0, 1.0, 1.0],
+    "crosshair_recoil_color": [
+      1.0,
+      0.2,
+      0.2,
+      1.0
+    ],
+    "crosshair_sniper_color": [
+      1.0,
+      1.0,
+      1.0,
+      0.9
+    ],
+    "crosshair_dynamic_color": [
+      1.0,
+      0.3,
+      0.3,
+      1.0
+    ],
+    "crosshair_dynamic_core": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
     "crosshair_dynamic_size": 5.0,
     "crosshair_dynamic_core_size": 3.0,
-    "crosshair_snaplines_color": [1.0, 0.3, 0.3, 0.8],
+    "crosshair_snaplines_color": [
+      1.0,
+      0.3,
+      0.3,
+      0.8
+    ],
     "crosshair_arrows": true,
-    "crosshair_arrows_color": [1.0, 0.2, 0.2, 0.9]
+    "crosshair_arrows_color": [
+      1.0,
+      0.2,
+      0.2,
+      0.9
+    ],
+    "box_thickness": 1.0,
+    "bone_thickness": 1.0
   },
   "settings": {
     "team_check": true,
@@ -47,7 +103,12 @@
     "smooth": 0.0,
     "fake_smooth": 0.8,
     "show_fov_circle": true,
-    "fov_color": [1.0, 0.2, 0.2, 0.6],
+    "fov_color": [
+      1.0,
+      0.2,
+      0.2,
+      0.6
+    ],
     "position": 0,
     "position_pistol": 0,
     "position_sniper": 0,

@@ -22,9 +22,10 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
         "visuals": {
             "show_box_esp":          menu_cfg.show_box_esp,
             "box_color":             menu_cfg.box_color,
-            "box_type":              menu_cfg.box_type,
+            "box_thickness":         menu_cfg.box_thickness,
             "show_bone_esp":         menu_cfg.show_bone_esp,
             "bone_color":            menu_cfg.bone_color,
+            "bone_thickness":        menu_cfg.bone_thickness,
             "show_health_bar":       menu_cfg.show_health_bar,
             "health_bar_type":       menu_cfg.health_bar_type,
             "show_player_name":      menu_cfg.show_player_name,
@@ -115,9 +116,14 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     v = data.get("visuals", {})
     menu_cfg.show_box_esp        = v.get("show_box_esp",       menu_cfg.show_box_esp)
     menu_cfg.box_color           = v.get("box_color",          menu_cfg.box_color)
-    menu_cfg.box_type            = v.get("box_type",           menu_cfg.box_type)
+    # box_type eski format → thickness'e çevir (geriye dönük uyumluluk)
+    if "box_thickness" in v:
+        menu_cfg.box_thickness   = float(v["box_thickness"])
+    elif "box_type" in v:
+        menu_cfg.box_thickness   = 0.5 if v["box_type"] == 1 else 1.0
     menu_cfg.show_bone_esp       = v.get("show_bone_esp",      menu_cfg.show_bone_esp)
     menu_cfg.bone_color          = v.get("bone_color",         menu_cfg.bone_color)
+    menu_cfg.bone_thickness      = float(v.get("bone_thickness", menu_cfg.bone_thickness))
     menu_cfg.show_health_bar     = v.get("show_health_bar",    menu_cfg.show_health_bar)
     menu_cfg.health_bar_type     = v.get("health_bar_type",    menu_cfg.health_bar_type)
     menu_cfg.show_player_name    = v.get("show_player_name",   menu_cfg.show_player_name)
