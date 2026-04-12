@@ -669,11 +669,12 @@ while True:
             imgui.same_line()
             ch,v=imgui.color_edit4("Kutu Rengi##b",*menu_config.box_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
             if ch: menu_config.box_color=list(v)
-            _,menu_config.box_type        =imgui.combo("Kutu Tipi",          menu_config.box_type,["Normal","Ince"])
+            _,menu_config.box_thickness   =imgui.slider_float("Kutu Kalinligi",menu_config.box_thickness,0.1,2.0,"%.1f")
             _,menu_config.show_bone_esp   =imgui.checkbox("Iskelet ESP",     menu_config.show_bone_esp)
             imgui.same_line()
             ch,v=imgui.color_edit4("Iskelet Rengi##sk",*menu_config.bone_color,flags=imgui.COLOR_EDIT_NO_INPUTS)
             if ch: menu_config.bone_color=list(v)
+            _,menu_config.bone_thickness  =imgui.slider_float("Iskelet Kalinligi",menu_config.bone_thickness,0.1,2.0,"%.1f")
             _,menu_config.show_health_bar =imgui.checkbox("Can Bari",        menu_config.show_health_bar)
             _,menu_config.health_bar_type =imgui.combo("Can Bari Konumu",    menu_config.health_bar_type,["Sol","Ust","Sag","Alt"])
             _,menu_config.show_player_name=imgui.checkbox("Oyuncu Adi",      menu_config.show_player_name)
@@ -953,7 +954,7 @@ while True:
                         aim_pos = tuple(ap)
 
             if menu_config.show_box_esp:
-                dl.add_rect(x1,y1,x2,y2, hp_color(hp, menu_config.box_color), 0, 0, 1.5)
+                dl.add_rect(x1,y1,x2,y2, hp_color(hp, menu_config.box_color), 0, 0, menu_config.box_thickness)
 
             if menu_config.show_dot_esp:
                 # Gövde ortasına nokta — kutu merkezine
@@ -1010,7 +1011,7 @@ while True:
                         if prev and prev["screen"] and cur["screen"]:
                             ps,cs2=prev["screen"],cur["screen"]
                             if all(abs(v)<W*3 for v in [ps[0],ps[1],cs2[0],cs2[1]]):
-                                dl.add_line(ps[0],ps[1],cs2[0],cs2[1],bc,1.5)
+                                dl.add_line(ps[0],ps[1],cs2[0],cs2[1],bc,menu_config.bone_thickness)
                         prev=cur
 
             if menu_config.show_eye_ray and len(bones)>BONEINDEX.head and bones[BONEINDEX.head]["screen"]:
