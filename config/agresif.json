@@ -99,9 +99,9 @@
   "aimbot": {
     "enabled": true,
     "hotkey_index": 1,
-    "fov": 20.0,
+    "fov": 25.0,
     "smooth": 0.0,
-    "fake_smooth": 0.8,
+    "fake_smooth": 0.3,
     "show_fov_circle": true,
     "fov_color": [
       1.0,
@@ -115,8 +115,8 @@
     "auto_shot": true,
     "visible_check": false,
     "ignore_on_shot": false,
-    "rcs_enabled": true,
-    "rcs_scale": 1.0,
+    "rcs_enabled": false,
+    "rcs_scale": 0.0,
     "velocity_pred": true
   },
   "triggerbot": {

@@ -99,9 +99,9 @@
   "aimbot": {
     "enabled": true,
     "hotkey_index": 1,
-    "fov": 10.0,
-    "smooth": 0.05,
-    "fake_smooth": 0.8,
+    "fov": 12.0,
+    "smooth": 0.0,
+    "fake_smooth": 0.4,
     "show_fov_circle": false,
     "fov_color": [
       1.0,
@@ -109,21 +109,21 @@
       0.1,
       0.6
     ],
-    "position": 1,
+    "position": 0,
     "position_pistol": 0,
     "position_sniper": 2,
     "auto_shot": true,
     "visible_check": true,
     "ignore_on_shot": false,
-    "rcs_enabled": true,
-    "rcs_scale": 0.85,
+    "rcs_enabled": false,
+    "rcs_scale": 0.0,
     "velocity_pred": true
   },
   "triggerbot": {
-    "enabled": false,
+    "enabled": true,
     "hotkey_index": 4,
     "mode": 0,
-    "delay_ms": 90
+    "delay_ms": 30
   },
   "radar": {}
 }
