@@ -358,6 +358,30 @@ def _entity_loop():
                                 "spotted":spotted,"flags":flags})
             with _lock: _ents=tmp; _local=loc
 
+            # ── RCS (~200Hz) — aim tuşundan bağımsız, sol tık basılıyken ──────
+            if aim_config.rcs_enabled and lp and loc:
+                _wpn_rcs = loc.get("weapon", "")
+                if _wpn_rcs not in NO_RECOIL_WEAPONS:
+                    if user32.GetAsyncKeyState(0x01) & 0x8000:
+                        _punch_r = pm.read_memory(lp + off.aimPunchAngle, 8) if off.aimPunchAngle else None
+                        if _punch_r and len(_punch_r) == 8:
+                            _pp, _py2 = _S_F2.unpack(_punch_r)
+                            _dp = _pp - _rcs_old_punch_p
+                            _dy = _py2 - _rcs_old_punch_y
+                            if abs(_dp) > 0.005 or abs(_dy) > 0.005:
+                                _va_r = pm.read_memory(game.address.view_angle, 8)
+                                if _va_r and len(_va_r) == 8:
+                                    _ca_p, _ca_y = _S_F2.unpack(_va_r)
+                                    _np = max(-89.0, min(89.0, _ca_p - _dp * aim_config.rcs_scale))
+                                    _ny = _ca_y - _dy * aim_config.rcs_scale
+                                    pm.write_memory(game.address.view_angle,
+                                                    struct.pack("<ff", _np, _ny))
+                            _rcs_old_punch_p = _pp
+                            _rcs_old_punch_y = _py2
+                    else:
+                        _rcs_old_punch_p = 0.0
+                        _rcs_old_punch_y = 0.0
+
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
                 # Sadece aktif pawn adreslerini cache'de tut
@@ -591,18 +615,15 @@ def _aim_loop():
             if best_new_p is None:
                 time.sleep(0.001); continue
 
-            # RCS: punch kompansasyonu — viewangle'a direkt uygula
-            if aim_config.rcs_enabled and shots_fired > 1:
-                if abs(punch_p) > 0.01 or abs(punch_y) > 0.01:
-                    best_new_p -= punch_p * aim_config.rcs_scale
-                    best_new_y -= punch_y * aim_config.rcs_scale
+            # RCS aim loop'ta değil, entity loop'ta çalışıyor
+            # (aim tuşundan bağımsız, sol tık basılıyken aktif)
 
-            # Spray pattern: pattern kompansasyonu — viewangle'a direkt uygula
-            if aim_config.spray_control and shots_fired > 1:
+            # Spray pattern: sol tık basılıyken pattern kompansasyonu
+            if aim_config.spray_control and bool(user32.GetAsyncKeyState(0x01) & 0x8000):
                 _wpn_sp = local.get("weapon", "")
-                if _wpn_sp in SPRAY_PATTERNS:
+                if _wpn_sp in SPRAY_PATTERNS and shots_fired > 0:
                     pattern = SPRAY_PATTERNS[_wpn_sp]
-                    sidx = min(shots_fired - 1, len(pattern) - 1)
+                    sidx = min(max(shots_fired - 1, 0), len(pattern) - 1)
                     sp_p, sp_y = pattern[sidx]
                     best_new_p -= sp_p * aim_config.rcs_scale
                     best_new_y += sp_y * aim_config.rcs_scale
