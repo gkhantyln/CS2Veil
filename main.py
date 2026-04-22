@@ -366,14 +366,17 @@ def _entity_loop():
                         _punch_r = pm.read_memory(lp + off.aimPunchAngle, 8) if off.aimPunchAngle else None
                         if _punch_r and len(_punch_r) == 8:
                             _pp, _py2 = _S_F2.unpack(_punch_r)
+                            # Mutlak punch kompansasyonu:
+                            # Her frame punch değişimini (delta) viewangle'a uygula
                             _dp = _pp - _rcs_old_punch_p
                             _dy = _py2 - _rcs_old_punch_y
-                            if abs(_dp) > 0.005 or abs(_dy) > 0.005:
+                            if abs(_dp) > 0.001 or abs(_dy) > 0.001:
                                 _va_r = pm.read_memory(game.address.view_angle, 8)
                                 if _va_r and len(_va_r) == 8:
                                     _ca_p, _ca_y = _S_F2.unpack(_va_r)
-                                    _np = max(-89.0, min(89.0, _ca_p - _dp * aim_config.rcs_scale))
-                                    _ny = _ca_y - _dy * aim_config.rcs_scale
+                                    # punch negatif = silah yukarı → pitch artır (yukarı bak = kompanse)
+                                    _np = max(-89.0, min(89.0, _ca_p + _dp * 2.0 * aim_config.rcs_scale))
+                                    _ny = _ca_y + _dy * 2.0 * aim_config.rcs_scale
                                     pm.write_memory(game.address.view_angle,
                                                     struct.pack("<ff", _np, _ny))
                             _rcs_old_punch_p = _pp
@@ -436,11 +439,11 @@ def _aim_loop():
     LOCK_GRACE          = 0.2
 
     _fallback = {
-        BONEINDEX.head:    [BONEINDEX.neck_0, BONEINDEX.spine_4, BONEINDEX.spine_3],
-        BONEINDEX.neck_0:  [BONEINDEX.spine_4, BONEINDEX.spine_3],
-        BONEINDEX.spine_4: [BONEINDEX.spine_3, BONEINDEX.spine_2],
-        BONEINDEX.spine_3: [BONEINDEX.spine_2, BONEINDEX.pelvis],
-        BONEINDEX.spine_2: [BONEINDEX.pelvis],
+        BONEINDEX.head:    [BONEINDEX.neck_0, BONEINDEX.spine_3, BONEINDEX.spine_2],
+        BONEINDEX.neck_0:  [BONEINDEX.spine_3, BONEINDEX.spine_2],
+        BONEINDEX.spine_3: [BONEINDEX.spine_2, BONEINDEX.spine_1],
+        BONEINDEX.spine_2: [BONEINDEX.spine_1, BONEINDEX.pelvis],
+        BONEINDEX.spine_1: [BONEINDEX.pelvis],
         BONEINDEX.pelvis:  [],
     }
 
@@ -994,8 +997,7 @@ while True:
                 imgui.same_line(); imgui.text_colored("(dusuk=daha isabetli)",0.6,0.6,0.6,1)
             imgui.separator()
             _,aim_config.spray_control=imgui.checkbox("Spray Kontrol",aim_config.spray_control)
-            if aim_config.spray_control:
-                imgui.same_line(); imgui.text_colored("AK47/M4/FAMAS/Galil",0.6,0.6,0.6,1)
+            imgui.same_line(); imgui.text_colored("(RCS ile birlikte acmayin - deneysel)",0.9,0.3,0.3,1)
             imgui.separator()
             # RCS - Recoil Control System
             imgui.text("--- Geri Tepme Kontrolu (RCS) ---")
