@@ -148,7 +148,64 @@ def check_offset_freshness():
         return {}
 
 
-def run_offset_update():
+def restore_offset_backup():
+    """Yedek offset dosyalarını (.bak) geri yükler."""
+    import os, shutil
+    clear()
+    print(f"\n  {WHITE}{BOLD}Yedekten Geri Yukle{RESET}\n")
+    print(f"{RED}{'-'*52}{RESET}\n")
+
+    files = {
+        "offsets.json":    "offsets.json.bak",
+        "client.dll.json": "client.dll.json.bak",
+    }
+
+    # Yedek var mı kontrol et
+    found = {}
+    for target, backup in files.items():
+        if os.path.exists(backup):
+            size = os.path.getsize(backup)
+            mtime = os.path.getmtime(backup)
+            import datetime
+            dt = datetime.datetime.fromtimestamp(mtime).strftime("%d.%m.%Y %H:%M")
+            found[target] = (backup, size, dt)
+            print(f"  {GREEN}[✓]{RESET} {backup}  {DIM}({size//1024}KB - {dt}){RESET}")
+        else:
+            print(f"  {RED}[✗]{RESET} {backup}  {DIM}bulunamadi{RESET}")
+
+    if not found:
+        print(f"\n  {YELLOW}Hic yedek dosya bulunamadi.{RESET}")
+        input(f"\n  {DIM}Devam etmek icin Enter...{RESET}")
+        return
+
+    print()
+    print(f"  {YELLOW}Bu yedekleri geri yuklemek ister misiniz? (e/H): {RESET}", end="", flush=True)
+    try:
+        ans = input().strip().lower()
+    except Exception:
+        ans = ""
+
+    if ans not in ("e", "evet", "y", "yes"):
+        print(f"  {DIM}Iptal edildi.{RESET}")
+        input(f"\n  {DIM}Devam etmek icin Enter...{RESET}")
+        return
+
+    ok = 0
+    for target, (backup, _, _) in found.items():
+        try:
+            # Mevcut dosyayı geçici olarak sakla
+            if os.path.exists(target):
+                shutil.copy2(target, target + ".new")
+            shutil.copy2(backup, target)
+            print(f"  {GREEN}[OK]{RESET} {backup} → {target}")
+            ok += 1
+        except Exception as e:
+            print(f"  {RED}[!!]{RESET} {target}: {e}")
+
+    if ok > 0:
+        print(f"\n  {GREEN}{ok} dosya geri yuklendi.{RESET}")
+        print(f"  {DIM}Programi yeniden baslatmaniz onerilir.{RESET}")
+    input(f"\n  {DIM}Devam etmek icin Enter...{RESET}")
     """Offset güncelleme — kaynak seçimi ile."""
     try:
         from utils.updater import get_source_info, download_offsets_from
@@ -242,6 +299,7 @@ def draw_menu(update_info=None):
     print(f"  {WHITE}{BOLD}[2]{RESET}  {DIM}Durumu Yenile{RESET}")
     print(f"  {WHITE}{BOLD}[3]{RESET}  {DIM}Guncelleme Kontrol{RESET}")
     print(f"  {WHITE}{BOLD}[4]{RESET}  {DIM}Offset Guncelle{RESET}")
+    print(f"  {WHITE}{BOLD}[5]{RESET}  {DIM}Yedekten Geri Yukle{RESET}")
     print(f"  {WHITE}{BOLD}[0]{RESET}  {DIM}Cikis{RESET}")
     print()
     print(f"{RED}{'-'*52}{RESET}")
@@ -299,6 +357,10 @@ def main():
 
         elif choice == "4":
             run_offset_update()
+            update_info = {}
+
+        elif choice == "5":
+            restore_offset_backup()
             update_info = {}
 
         elif choice == "0":
