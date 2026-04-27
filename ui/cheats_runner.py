@@ -84,13 +84,15 @@ def _read_entities_impl():
     if not ges or not entry_base or not local_ctrl or not local_pawn:
         return [], None
 
-    local_team = pm.read_i32(local_ctrl + off.TeamID)
-    local_hp   = pm.read_i32(local_pawn  + off.CurrentHealth)
-    local_pos  = pm.read_vec3(local_pawn + off.Pos)
-    local_ang  = pm.read_vec2(local_pawn + off.angEyeAngles)
-    local_cam  = pm.read_vec3(local_pawn + off.vecLastClipCameraPos)
-    local_fov  = _read_fov(local_pawn)
-    local_wpn  = _read_weapon_name(local_pawn)
+    local_team        = pm.read_i32(local_ctrl + off.TeamID)
+    local_hp          = pm.read_i32(local_pawn  + off.CurrentHealth)
+    local_pos         = pm.read_vec3(local_pawn + off.Pos)
+    local_ang         = pm.read_vec2(local_pawn + off.angEyeAngles)
+    local_cam         = pm.read_vec3(local_pawn + off.vecLastClipCameraPos)
+    local_fov         = _read_fov(local_pawn)
+    local_wpn         = _read_weapon_name(local_pawn)
+    local_shots_fired = pm.read_u32(local_pawn + off.iShotsFired)
+    local_aim_punch   = pm.read_vec2(local_pawn + off.aimPunchAngle)
 
     local_info = {
         "ctrl": local_ctrl, "pawn": local_pawn,
@@ -98,6 +100,8 @@ def _read_entities_impl():
         "pos": local_pos, "ang": local_ang,
         "cam": local_cam, "fov": local_fov,
         "weapon": local_wpn, "ctrl_idx": 0,
+        "shots_fired": local_shots_fired,
+        "aim_punch": local_aim_punch,
     }
 
     entities = []
@@ -378,6 +382,10 @@ def run_frame():
         if trigger_config.mode == 1 or (trigger_config.mode == 0 and _trigger_key):
             pass  # TODO
 
+    # RCS — aimbot tuşundan bağımsız, her frame çalışır
+    if aim_config.rcs_enabled:
+        _run_rcs(local)
+
     # Aimbot
     if aim_config.enabled and _aim_key and aim_pos:
         _run_aimbot(local, aim_pos)
@@ -414,6 +422,65 @@ def _draw_eye_ray(head_bone, view_angle, draw_list):
         sx,sy = head_bone["screen"]
         col = imgui.get_color_u32_rgba(*menu_config.eye_ray_color)
         draw_list.add_line(sx, sy, end[0], end[1], col, 1.3)
+
+
+_rcs_last_punch = (0.0, 0.0)   # bir önceki frame'deki aim_punch
+_rcs_last_shots = 0             # bir önceki frame'deki shots_fired
+
+
+def _run_rcs(local):
+    """Recoil Compensation System — aim_punch delta'sını mouse ile dengeler."""
+    global _rcs_last_punch, _rcs_last_shots
+
+    if not aim_config.rcs_enabled:
+        _rcs_last_punch = (0.0, 0.0)
+        _rcs_last_shots = 0
+        return
+
+    weapon = local.get("weapon", "")
+    from mods.aimbot import NO_RECOIL_WEAPONS
+    if weapon in NO_RECOIL_WEAPONS or weapon in ("knife", "knife_t", ""):
+        _rcs_last_punch = (0.0, 0.0)
+        _rcs_last_shots = 0
+        return
+
+    shots = local.get("shots_fired", 0)
+    punch = local.get("aim_punch", (0.0, 0.0))
+
+    # Ateş edilmiyorsa sıfırla
+    if shots < 2:
+        _rcs_last_punch = punch
+        _rcs_last_shots = shots
+        return
+
+    # Yeni atış yoksa hareket etme
+    if shots == _rcs_last_shots:
+        return
+
+    # aim_punch delta: bu frame ile önceki frame arasındaki fark
+    dp = punch[0] - _rcs_last_punch[0]   # pitch delta (negatif = yukarı geri tepme)
+    dy = punch[1] - _rcs_last_punch[1]   # yaw delta
+
+    _rcs_last_punch = punch
+    _rcs_last_shots = shots
+
+    # Çok küçük değerleri yoksay (noise)
+    if abs(dp) < 0.01 and abs(dy) < 0.01:
+        return
+
+    sw, sh = game.view.screen_w, game.view.screen_h
+    pawn_fov = max(local.get("fov", 90), 1)
+    # Derece → pixel dönüşümü
+    px_per_deg = (sw / 2.0) / (pawn_fov / 2.0)
+
+    scale = aim_config.rcs_scale
+    # aim_punch zaten 2x büyütülmüş (CS2 mekanik), gerçek açı = punch * 2
+    # Kompanse: tepkinin tersine git
+    mx = -dy  * 2.0 * scale * px_per_deg
+    my =  dp  * 2.0 * scale * px_per_deg   # pitch pozitif = aşağı tepme → yukarı git
+
+    from utils.kmbox import kmbox
+    kmbox.move(mx, my)
 
 
 def _run_aimbot(local, aim_pos):

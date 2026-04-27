@@ -358,33 +358,6 @@ def _entity_loop():
                                 "spotted":spotted,"flags":flags})
             with _lock: _ents=tmp; _local=loc
 
-            # ── RCS (~200Hz) — aim tuşundan bağımsız, sol tık basılıyken ──────
-            if aim_config.rcs_enabled and lp and loc:
-                _wpn_rcs = loc.get("weapon", "")
-                if _wpn_rcs not in NO_RECOIL_WEAPONS:
-                    if user32.GetAsyncKeyState(0x01) & 0x8000:
-                        _punch_r = pm.read_memory(lp + off.aimPunchAngle, 8) if off.aimPunchAngle else None
-                        if _punch_r and len(_punch_r) == 8:
-                            _pp, _py2 = _S_F2.unpack(_punch_r)
-                            # Mutlak punch kompansasyonu:
-                            # Her frame punch değişimini (delta) viewangle'a uygula
-                            _dp = _pp - _rcs_old_punch_p
-                            _dy = _py2 - _rcs_old_punch_y
-                            if abs(_dp) > 0.001 or abs(_dy) > 0.001:
-                                _va_r = pm.read_memory(game.address.view_angle, 8)
-                                if _va_r and len(_va_r) == 8:
-                                    _ca_p, _ca_y = _S_F2.unpack(_va_r)
-                                    # punch negatif = silah yukarı → pitch artır (yukarı bak = kompanse)
-                                    _np = max(-89.0, min(89.0, _ca_p + _dp * 2.0 * aim_config.rcs_scale))
-                                    _ny = _ca_y + _dy * 2.0 * aim_config.rcs_scale
-                                    pm.write_memory(game.address.view_angle,
-                                                    struct.pack("<ff", _np, _ny))
-                            _rcs_old_punch_p = _pp
-                            _rcs_old_punch_y = _py2
-                    else:
-                        _rcs_old_punch_p = 0.0
-                        _rcs_old_punch_y = 0.0
-
             if now - last_weapon_update > 0.5:
                 last_weapon_update = now
                 # Sadece aktif pawn adreslerini cache'de tut
@@ -659,6 +632,59 @@ def _aim_loop():
         time.sleep(0.001)  # ~1000Hz
 
 threading.Thread(target=_aim_loop, daemon=True, name="cs2veil-aim").start()
+
+# ── RCS Thread — ~1000Hz, aim loop'tan bağımsız ──────────────────────────────
+def _rcs_loop():
+    """RCS: punch delta'sını ~1000Hz'de viewangle'a uygular."""
+    _old_p = 0.0
+    _old_y = 0.0
+    while True:
+        try:
+            if not aim_config.rcs_enabled:
+                _old_p = 0.0; _old_y = 0.0
+                time.sleep(0.005); continue
+
+            if not bool(user32.GetAsyncKeyState(0x01) & 0x8000):
+                _old_p = 0.0; _old_y = 0.0
+                time.sleep(0.001); continue
+
+            with _lock:
+                local = _local
+            if not local:
+                time.sleep(0.001); continue
+
+            wpn = local.get("weapon", "")
+            if wpn in NO_RECOIL_WEAPONS:
+                time.sleep(0.001); continue
+
+            lp = local.get("pawn")
+            if not lp or not off.aimPunchAngle or not game.address.view_angle:
+                time.sleep(0.001); continue
+
+            punch_raw = pm.read_memory(lp + off.aimPunchAngle, 8)
+            if not punch_raw or len(punch_raw) < 8:
+                time.sleep(0.001); continue
+            pp, py = _S_F2.unpack(punch_raw)
+
+            dp = pp - _old_p
+            dy = py - _old_y
+
+            if abs(dp) > 0.001 or abs(dy) > 0.001:
+                va_raw = pm.read_memory(game.address.view_angle, 8)
+                if va_raw and len(va_raw) == 8:
+                    cur_p, cur_y = _S_F2.unpack(va_raw)
+                    new_p = max(-89.0, min(89.0, cur_p + dp * 2.0 * aim_config.rcs_scale))
+                    new_y = cur_y + dy * 2.0 * aim_config.rcs_scale
+                    pm.write_memory(game.address.view_angle,
+                                    struct.pack("<ff", new_p, new_y))
+            _old_p = pp
+            _old_y = py
+
+        except Exception:
+            pass
+        time.sleep(0.001)  # ~1000Hz
+
+threading.Thread(target=_rcs_loop, daemon=True, name="cs2veil-rcs").start()
 
 # ---- Config UI state ----
 _cfg_name_buf   = [""]
