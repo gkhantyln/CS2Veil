@@ -206,6 +206,9 @@ def restore_offset_backup():
         print(f"\n  {GREEN}{ok} dosya geri yuklendi.{RESET}")
         print(f"  {DIM}Programi yeniden baslatmaniz onerilir.{RESET}")
     input(f"\n  {DIM}Devam etmek icin Enter...{RESET}")
+
+
+def run_offset_update():
     """Offset güncelleme — kaynak seçimi ile."""
     try:
         from utils.updater import get_source_info, download_offsets_from

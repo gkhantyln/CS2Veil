@@ -47,6 +47,10 @@ class Offsets:
     angEyeAngles:         int = 0
     vecLastClipCameraPos: int = 0
     pClippingWeapon:      int = 0
+    pWeaponServices:      int = 0
+    hActiveWeapon:        int = 0
+    pAimPunchServices:    int = 0
+    vecCsViewPunchAngle:  int = 0
     iShotsFired:          int = 0
     flFlashDuration:      int = 0
     aimPunchAngle:        int = 0
@@ -101,38 +105,88 @@ class Offsets:
                 return val.get("offset", 0)
             return val if isinstance(val, int) else 0
 
+        def find_field(name: str, preferred_classes: list = None) -> int:
+            """
+            Field'i once preferred_classes'ta arar, bulamazsa tum class'larda tarar.
+            CS2 guncellemelerinde field'lar class degistirince otomatik bulur.
+            """
+            classes = cli.get("client.dll", {}).get("classes", {})
+            # Once tercih edilen class'larda ara
+            if preferred_classes:
+                for cls in preferred_classes:
+                    val = classes.get(cls, {}).get("fields", {}).get(name, None)
+                    if val is not None:
+                        if isinstance(val, dict):
+                            return val.get("offset", 0)
+                        return val if isinstance(val, int) else 0
+            # Bulunamazsa tum class'larda tara — player/pawn class'larini once kontrol et
+            priority = [c for c in classes if 'player' in c.lower() or 'pawn' in c.lower() or 'cs2' in c.lower()]
+            rest     = [c for c in classes if c not in priority]
+            for cls in priority + rest:
+                val = classes.get(cls, {}).get("fields", {}).get(name, None)
+                if val is not None:
+                    if isinstance(val, dict):
+                        return val.get("offset", 0)
+                    return val if isinstance(val, int) else 0
+            return 0
+
         self.Health        = field("C_BaseEntity", "m_iHealth")
         self.TeamID        = field("C_BaseEntity", "m_iTeamNum")
-        self.IsAlive       = field("CCSPlayerController", "m_bPawnIsAlive")
-        self.PlayerPawn    = field("CCSPlayerController", "m_hPlayerPawn")
-        self.iszPlayerName = field("CBasePlayerController", "m_iszPlayerName")
+        self.IsAlive       = find_field("m_bPawnIsAlive",  ["CCSPlayerController"])
+        self.PlayerPawn    = find_field("m_hPlayerPawn",   ["CCSPlayerController"])
+        self.iszPlayerName = find_field("m_iszPlayerName", ["CBasePlayerController"])
 
-        self.Pos                  = field("C_BasePlayerPawn", "m_vOldOrigin")
+        self.Pos                  = find_field("m_vOldOrigin",    ["C_BasePlayerPawn"])
         self.MaxHealth            = field("C_BaseEntity", "m_iMaxHealth")
         self.CurrentHealth        = field("C_BaseEntity", "m_iHealth")
         self.GameSceneNode        = field("C_BaseEntity", "m_pGameSceneNode")
-        self.BoneArray            = 0x1D0   # GameSceneNode + 0x1D0
-        self.angEyeAngles         = field("C_CSPlayerPawn", "m_angEyeAngles")
-        self.vecLastClipCameraPos = field("C_CSPlayerPawn", "m_vecLastClipCameraPos")
-        self.pClippingWeapon      = field("C_CSPlayerPawnBase", "m_pClippingWeapon")
-        self.iShotsFired          = field("C_CSPlayerPawnBase", "m_iShotsFired")
-        self.flFlashDuration      = field("C_CSPlayerPawnBase", "m_flFlashDuration")
-        self.aimPunchAngle        = field("C_CSPlayerPawn", "m_aimPunchAngle")
-        self.aimPunchCache        = field("C_CSPlayerPawn", "m_aimPunchCache")
-        self.iIDEntIndex          = field("C_CSPlayerPawnBase", "m_iIDEntIndex")
-        self.iTeamNum             = field("C_BaseEntity", "m_iTeamNum")
-        self.CameraServices       = field("C_BasePlayerPawn", "m_pCameraServices")
-        self.iFovStart            = field("CCSPlayerBase_CameraServices", "m_iFOVStart")
-        self.fFlags               = field("C_BaseEntity", "m_fFlags")
-        self.vecVelocity          = field("C_BasePlayerPawn", "m_vecVelocity")
 
-        m_entity_spotted = field("C_CSPlayerPawnBase", "m_entitySpottedState")
-        m_spotted_mask   = field("EntitySpottedState_t", "m_bSpottedByMask")
-        # Her iki değer de int olmalı, dict gelirse 0 kullan
-        if isinstance(m_entity_spotted, int) and isinstance(m_spotted_mask, int):
+        # BoneArray: CSkeletonInstance.m_modelState = 0x150, bone ptr = +0x80
+        self.BoneArray            = 0x1D0  # 0x150 + 0x80
+
+        self.angEyeAngles         = find_field("m_angEyeAngles",  ["C_CSPlayerPawn"])
+
+        # Kamera pozisyonu — tercih sirasi ile ara
+        self.vecLastClipCameraPos = (
+            find_field("m_vecLastClipCameraPos",          ["C_CSPlayerPawn"]) or
+            find_field("m_vecLastCameraSetupLocalOrigin", ["C_BasePlayerPawn"])
+        )
+
+        # Silah servisi
+        self.pWeaponServices = find_field("m_pWeaponServices", ["C_BasePlayerPawn"])
+        self.hActiveWeapon   = find_field("m_hActiveWeapon",   ["CPlayer_WeaponServices"])
+        self.pClippingWeapon = (
+            find_field("m_pClippingWeapon", ["C_CSPlayerPawnBase", "C_CSPlayerPawn"]) or 0
+        )
+
+        # Atış sayısı
+        self.iShotsFired = find_field("m_iShotsFired", ["C_CSPlayerPawnBase", "C_CSPlayerPawn"])
+
+        self.flFlashDuration = find_field("m_flFlashDuration", ["C_CSPlayerPawnBase", "C_CSPlayerPawn"])
+
+        # Punch angle — eski veya yeni yontem
+        self.aimPunchAngle     = find_field("m_aimPunchAngle", ["C_CSPlayerPawn"]) or 0
+        self.aimPunchCache     = find_field("m_aimPunchCache", ["C_CSPlayerPawn"]) or 0
+        self.pAimPunchServices = find_field("m_pAimPunchServices",   ["C_CSPlayerPawn"]) or 0
+        self.vecCsViewPunchAngle = find_field("m_vecCsViewPunchAngle", ["CPlayer_CameraServices"]) or 0
+
+        self.iIDEntIndex = find_field("m_iIDEntIndex", ["C_CSPlayerPawnBase", "C_CSPlayerPawn"])
+
+        self.iTeamNum        = field("C_BaseEntity", "m_iTeamNum")
+        self.CameraServices  = find_field("m_pCameraServices", ["C_BasePlayerPawn"])
+        self.iFovStart       = find_field("m_iFOVStart", ["CCSPlayerBase_CameraServices", "CPlayer_CameraServices"])
+        self.fFlags          = find_field("m_fFlags",    ["C_BaseEntity"])
+        self.vecVelocity     = find_field("m_vecVelocity", ["C_BasePlayerPawn", "C_BaseEntity"])
+
+        # Spotted mask
+        m_entity_spotted = (
+            find_field("m_entitySpottedState", ["C_CSPlayerPawnBase", "C_CSPlayerPawn"])
+        )
+        m_spotted_mask = find_field("m_bSpottedByMask", ["EntitySpottedState_t"])
+        if m_entity_spotted and m_spotted_mask:
             self.bSpottedByMask = m_entity_spotted + m_spotted_mask
-        elif isinstance(m_entity_spotted, int):
-            self.bSpottedByMask = m_entity_spotted + 4  # varsayılan offset
+        elif m_entity_spotted:
+            self.bSpottedByMask = m_entity_spotted + 4
         else:
             self.bSpottedByMask = 0
 

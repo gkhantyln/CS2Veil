@@ -94,9 +94,23 @@ class PlayerPawn:
         self.address = address
 
         self.camera_pos  = pm.read_vec3(address + off.vecLastClipCameraPos)
-        self.pos         = pm.read_vec3(address + off.Pos)
+        # Eger kamera poz sifirsa veya cok uzaksa, pos + eye height kullan
+        cx, cy, cz = self.camera_pos
+        px, py, pz = pm.read_vec3(address + off.Pos)
+        if cx == 0.0 and cy == 0.0 and cz == 0.0:
+            self.camera_pos = (px, py, pz + 64.0)  # CS2 eye height ~64 units
+        else:
+            # vecLastCameraSetupLocalOrigin ayak pozisyonu — eye height ekle
+            self.camera_pos = (cx, cy, cz + 64.0)
+        self.pos         = (px, py, pz)
         self.view_angle  = pm.read_vec2(address + off.angEyeAngles)
-        self.aim_punch   = pm.read_vec2(address + off.aimPunchAngle)
+
+        # Punch angle: m_pAimPunchServices -> m_vecCsViewPunchAngle
+        self.aim_punch = (0.0, 0.0)
+        if off.pAimPunchServices and off.vecCsViewPunchAngle:
+            punch_svc = pm.read_u64(address + off.pAimPunchServices)
+            if punch_svc:
+                self.aim_punch = pm.read_vec2(punch_svc + off.vecCsViewPunchAngle)
         self.shots_fired = pm.read_u32(address + off.iShotsFired)
         self.health      = pm.read_i32(address + off.CurrentHealth)
         self.team_id     = pm.read_i32(address + off.iTeamNum)
@@ -113,18 +127,33 @@ class PlayerPawn:
         return True
 
     def _update_weapon_name(self, pm, off):
-        weapon_addr = pm.trace_address(self.address + off.pClippingWeapon, [0x10, 0x20, 0x0])
-        if not weapon_addr:
-            self.weapon_name = "Weapon_None"
-            return
-        raw = pm.read_memory(weapon_addr, 260)
-        if not raw:
-            self.weapon_name = "Weapon_None"
-            return
-        end = raw.find(b'\x00')
-        name = raw[:end].decode(errors="ignore") if end != -1 else ""
-        idx = name.find("_")
-        self.weapon_name = name[idx + 1:] if idx != -1 and name else "Weapon_None"
+        # Yeni yontem: m_pWeaponServices -> m_hActiveWeapon -> weapon entity -> name
+        weapon_name = "Weapon_None"
+        try:
+            if off.pWeaponServices and off.hActiveWeapon:
+                weapon_svc = pm.read_u64(self.address + off.pWeaponServices)
+                if weapon_svc:
+                    weapon_handle = pm.read_u32(weapon_svc + off.hActiveWeapon)
+                    if weapon_handle:
+                        from .game import game
+                        ges = pm.read_u64(game.address.entity_list)
+                        if ges:
+                            chunk_idx = (weapon_handle & 0x7FFF) >> 9
+                            ent_idx   = weapon_handle & 0x1FF
+                            chunk_ptr = pm.read_u64(ges + 0x10 + 8 * chunk_idx)
+                            if chunk_ptr and chunk_ptr < 0x7FFFFFFFFFFF:
+                                weapon_addr = pm.read_u64(chunk_ptr + 0x70 * ent_idx)
+                                if weapon_addr and 0x10000 < weapon_addr < 0x7FFFFFFFFFFF:
+                                    raw = pm.read_memory(weapon_addr, 260)
+                                    if raw:
+                                        end = raw.find(b'\x00')
+                                        name = raw[:end].decode(errors="ignore") if end != -1 else ""
+                                        idx = name.find("_")
+                                        if idx != -1 and name:
+                                            weapon_name = name[idx + 1:]
+        except Exception:
+            pass
+        self.weapon_name = weapon_name
 
     def get_weapon_name_only(self):
         """Lightweight weapon name update for background thread."""

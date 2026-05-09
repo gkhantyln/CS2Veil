@@ -146,14 +146,22 @@ except Exception as _e:
 _ents, _local, _lock = [], None, threading.Lock()
 
 def _read_weapon(pawn):
-    # pClippingWeapon -> +0x10 -> +0x20 -> weapon name string
-    p1 = pm.read_u64(pawn + off.pClippingWeapon)
-    if not p1 or p1 > 0x7FFFFFFFFFFF: return ""
-    p2 = pm.read_u64(p1 + 0x10)
-    if not p2 or p2 > 0x7FFFFFFFFFFF: return ""
-    p3 = pm.read_u64(p2 + 0x20)
-    if not p3 or p3 > 0x7FFFFFFFFFFF: return ""
-    r = pm.read_memory(p3, 32)
+    # Yeni yontem: m_pWeaponServices -> m_hActiveWeapon -> entity -> name
+    if not off.pWeaponServices or not off.hActiveWeapon:
+        return ""
+    svc = pm.read_u64(pawn + off.pWeaponServices)
+    if not svc or svc > 0x7FFFFFFFFFFF: return ""
+    handle = pm.read_u32(svc + off.hActiveWeapon)
+    if not handle: return ""
+    ges = pm.read_u64(game.address.entity_list)
+    if not ges: return ""
+    c2 = (handle & 0x7FFF) >> 9
+    e2 = handle & 0x1FF
+    ch = pm.read_u64(ges + 0x10 + 8 * c2)
+    if not ch: return ""
+    waddr = pm.read_u64(ch + 0x70 * e2)
+    if not waddr or waddr > 0x7FFFFFFFFFFF: return ""
+    r = pm.read_memory(waddr, 32)
     if not r: return ""
     e = r.find(b'\x00'); n = r[:e].decode(errors="ignore") if e != -1 else ""
     i = n.find("_"); return n[i+1:] if i != -1 else n
@@ -261,24 +269,46 @@ def _entity_loop():
             cs = pm.read_u64(lp + off.CameraServices) if lp else 0
             lp_buf = pm.read_pawn_block(lp) if lp else None
             if lp_buf:
-                pp_raw = _f2(lp_buf, off.aimPunchAngle) if off.aimPunchAngle < 0x4000 else (0.0, 0.0)
+                # Punch angle: yeni yontem — pAimPunchServices -> vecCsViewPunchAngle
+                pp_raw = (0.0, 0.0)
+                if off.pAimPunchServices and off.vecCsViewPunchAngle and off.pAimPunchServices + 8 <= len(lp_buf):
+                    punch_svc = _u64(lp_buf, off.pAimPunchServices)
+                    if punch_svc and 0x10000 < punch_svc < 0x7FFFFFFFFFFF:
+                        punch_mem = pm.read_memory(punch_svc + off.vecCsViewPunchAngle, 8)
+                        if punch_mem and len(punch_mem) == 8:
+                            pp_raw = _f2(punch_mem, 0)
+                elif off.aimPunchAngle and off.aimPunchAngle < 0x4000:
+                    pp_raw = _f2(lp_buf, off.aimPunchAngle)
+
+                # cam: vecLastCameraSetupLocalOrigin ayak pozisyonu — eye height ekle
+                _pos_raw = _f3(lp_buf, off.Pos) if off.Pos + 12 <= len(lp_buf) else (0.0, 0.0, 0.0)
+                if off.vecLastClipCameraPos and off.vecLastClipCameraPos + 12 <= len(lp_buf):
+                    _cam_raw = _f3(lp_buf, off.vecLastClipCameraPos)
+                    if _cam_raw[0] == 0.0 and _cam_raw[1] == 0.0:
+                        _cam = (_pos_raw[0], _pos_raw[1], _pos_raw[2] + 64.0)
+                    else:
+                        _cam = (_cam_raw[0], _cam_raw[1], _cam_raw[2] + 64.0)
+                else:
+                    _cam = (_pos_raw[0], _pos_raw[1], _pos_raw[2] + 64.0)
+
                 loc={"ctrl":lc,"pawn":lp,
-                     "team":_i32(lp_buf, off.TeamID),
-                     "hp":  _i32(lp_buf, off.CurrentHealth),
-                     "pos": _f3(lp_buf,  off.Pos),
-                     "ang": _f2(lp_buf,  off.angEyeAngles),
-                     "cam": _f3(lp_buf,  off.vecLastClipCameraPos),
+                     "team":_i32(lp_buf, off.TeamID) if off.TeamID + 4 <= len(lp_buf) else 0,
+                     "hp":  _i32(lp_buf, off.CurrentHealth) if off.CurrentHealth + 4 <= len(lp_buf) else 0,
+                     "pos": _pos_raw,
+                     "ang": _f2(lp_buf, off.angEyeAngles) if off.angEyeAngles and off.angEyeAngles + 8 <= len(lp_buf) else pm.read_vec2(lp + off.angEyeAngles),
+                     "cam": _cam,
                      "punch": pp_raw,
                      "fov": pm.read_i32(cs+off.iFovStart) if cs else 90,
                      "weapon":_read_weapon(lp),"idx":0}
             else:
                 # lp yoksa controller'dan temel bilgileri al
+                _pos_fb = pm.read_vec3(lp+off.Pos) if lp else (0.0,0.0,0.0)
                 loc={"ctrl":lc,"pawn":lp,
                      "team":pm.read_i32(lc+off.TeamID) if lc else 0,
                      "hp":  pm.read_i32(lp+off.CurrentHealth) if lp else 100,
-                     "pos": pm.read_vec3(lp+off.Pos) if lp else (0.0,0.0,0.0),
+                     "pos": _pos_fb,
                      "ang": pm.read_vec2(lp+off.angEyeAngles) if lp else (0.0,0.0),
-                     "cam": pm.read_vec3(lp+off.vecLastClipCameraPos) if lp else (0.0,0.0,0.0),
+                     "cam": (_pos_fb[0], _pos_fb[1], _pos_fb[2] + 64.0),
                      "punch": (0.0,0.0),
                      "fov": pm.read_i32(cs+off.iFovStart) if cs else 90,
                      "weapon":"","idx":0}
@@ -390,7 +420,10 @@ def _entity_loop():
                         user32.keybd_event(0x20, 0, 0x0002, 0)  # KEYUP
                         user32.keybd_event(0x20, 0, 0x0000, 0)  # KEYDOWN
 
-        except Exception: pass
+        except Exception as _loop_err:
+            import traceback
+            print(f"[ entity_loop ERROR ] {_loop_err}")
+            traceback.print_exc()
         time.sleep(0.005)  # ~200Hz — matrix + entity okuma ağır
 
 threading.Thread(target=_entity_loop, daemon=True, name="cs2veil-entity").start()
@@ -459,9 +492,23 @@ def _aim_loop():
                 pos_raw = pm.read_memory(lp + off.Pos, 12)
                 if pos_raw and len(pos_raw) == 12:
                     cam_x, cam_y, cam_z = _S_F3.unpack(pos_raw)
+            # vecLastCameraSetupLocalOrigin ayak pozisyonu — eye height ekle
+            cam_z += 64.0
 
-            punch_raw = pm.read_memory(lp + off.aimPunchAngle, 8) if off.aimPunchAngle else b""
-            punch_p, punch_y = _S_F2.unpack(punch_raw) if len(punch_raw) == 8 else (0.0, 0.0)
+            # Punch angle: yeni yontem — pAimPunchServices -> vecCsViewPunchAngle
+            punch_p, punch_y = 0.0, 0.0
+            if off.pAimPunchServices and off.vecCsViewPunchAngle:
+                punch_svc_raw = pm.read_memory(lp + off.pAimPunchServices, 8)
+                if punch_svc_raw and len(punch_svc_raw) == 8:
+                    punch_svc = _S_U64.unpack(punch_svc_raw)[0]
+                    if punch_svc and 0x10000 < punch_svc < 0x7FFFFFFFFFFF:
+                        punch_raw = pm.read_memory(punch_svc + off.vecCsViewPunchAngle, 8)
+                        if punch_raw and len(punch_raw) == 8:
+                            punch_p, punch_y = _S_F2.unpack(punch_raw)
+            elif off.aimPunchAngle:
+                punch_raw = pm.read_memory(lp + off.aimPunchAngle, 8)
+                if punch_raw and len(punch_raw) == 8:
+                    punch_p, punch_y = _S_F2.unpack(punch_raw)
 
             va_raw = pm.read_memory(game.address.view_angle, 8)
             if not va_raw or len(va_raw) < 8:
@@ -658,13 +705,25 @@ def _rcs_loop():
                 time.sleep(0.001); continue
 
             lp = local.get("pawn")
-            if not lp or not off.aimPunchAngle or not game.address.view_angle:
+            if not lp or not game.address.view_angle:
                 time.sleep(0.001); continue
 
-            punch_raw = pm.read_memory(lp + off.aimPunchAngle, 8)
-            if not punch_raw or len(punch_raw) < 8:
+            # Punch angle: yeni yontem — pAimPunchServices -> vecCsViewPunchAngle
+            pp, py = 0.0, 0.0
+            if off.pAimPunchServices and off.vecCsViewPunchAngle:
+                punch_svc_raw = pm.read_memory(lp + off.pAimPunchServices, 8)
+                if punch_svc_raw and len(punch_svc_raw) == 8:
+                    punch_svc = _S_U64.unpack(punch_svc_raw)[0]
+                    if punch_svc and 0x10000 < punch_svc < 0x7FFFFFFFFFFF:
+                        punch_raw = pm.read_memory(punch_svc + off.vecCsViewPunchAngle, 8)
+                        if punch_raw and len(punch_raw) == 8:
+                            pp, py = _S_F2.unpack(punch_raw)
+            elif off.aimPunchAngle:
+                punch_raw = pm.read_memory(lp + off.aimPunchAngle, 8)
+                if punch_raw and len(punch_raw) == 8:
+                    pp, py = _S_F2.unpack(punch_raw)
+            else:
                 time.sleep(0.001); continue
-            pp, py = _S_F2.unpack(punch_raw)
 
             dp = pp - _old_p
             dy = py - _old_y
@@ -1167,13 +1226,15 @@ while True:
     with _lock: ents=list(_ents); local=_local
 
     if local:
-        # Durum gostergesi
-        if len(ents) > 0:
+        # Durum gostergesi — debug: ham ent sayisi + local team
+        raw_count = len(ents)
+        lt_dbg = local.get("team", 0)
+        if raw_count > 0:
             dl.add_text(10, 10, imgui.get_color_u32_rgba(0, 1, 0, 1),
-                        f"CS2Veil | {len(ents)}")
+                        f"CS2Veil | {raw_count} | T{lt_dbg}")
         else:
             dl.add_text(10, 10, imgui.get_color_u32_rgba(1, 0, 0, 1),
-                        "CS2Veil")
+                        f"CS2Veil | 0 | T{lt_dbg}")
         lt=local["team"]
         aim_pos=None; max_d=float('inf')
 

@@ -89,10 +89,24 @@ def _read_entities_impl():
     local_pos         = pm.read_vec3(local_pawn + off.Pos)
     local_ang         = pm.read_vec2(local_pawn + off.angEyeAngles)
     local_cam         = pm.read_vec3(local_pawn + off.vecLastClipCameraPos)
+    # vecLastCameraSetupLocalOrigin ayak pozisyonu — eye height ekle
+    lc_x, lc_y, lc_z = local_cam
+    if lc_x == 0.0 and lc_y == 0.0:
+        lp_pos = pm.read_vec3(local_pawn + off.Pos)
+        local_cam = (lp_pos[0], lp_pos[1], lp_pos[2] + 64.0)
+    else:
+        local_cam = (lc_x, lc_y, lc_z + 64.0)
     local_fov         = _read_fov(local_pawn)
     local_wpn         = _read_weapon_name(local_pawn)
     local_shots_fired = pm.read_u32(local_pawn + off.iShotsFired)
-    local_aim_punch   = pm.read_vec2(local_pawn + off.aimPunchAngle)
+    # Punch angle: yeni yontem — pAimPunchServices -> vecCsViewPunchAngle
+    local_aim_punch = (0.0, 0.0)
+    if off.pAimPunchServices and off.vecCsViewPunchAngle:
+        punch_svc = pm.read_u64(local_pawn + off.pAimPunchServices)
+        if punch_svc and 0x10000 < punch_svc < 0x7FFFFFFFFFFF:
+            local_aim_punch = pm.read_vec2(punch_svc + off.vecCsViewPunchAngle)
+    elif off.aimPunchAngle:
+        local_aim_punch = pm.read_vec2(local_pawn + off.aimPunchAngle)
 
     local_info = {
         "ctrl": local_ctrl, "pawn": local_pawn,
