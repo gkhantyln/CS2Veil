@@ -16,3 +16,4 @@ config/taylan.json
 externalv2/
 .kiro/
 xyazilim/
+*.bak

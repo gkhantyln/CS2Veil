@@ -43,7 +43,7 @@ class MenuConfig:
         self.line_to_enemy_color= [1.0, 1.0, 1.0, 0.86]
         self.team_check         = True
         self.shoot              = False
-        self.esp_fov_only       = True   # Sadece FOV icindekiler
+        self.esp_fov_only       = False  # Sadece FOV icindekiler
         self.no_flash           = False  # No Flash
         self.flash_max_alpha    = 180    # 0=tam flash, 255=hic flash yok
         self.stream_proof       = False  # OBS/ekran paylasimi gizleme

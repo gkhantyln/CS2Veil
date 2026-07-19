@@ -1272,7 +1272,11 @@ while True:
 
             head=bones[BONEINDEX.head]["screen"] if len(bones)>BONEINDEX.head and bones[BONEINDEX.head]["screen"] else None
 
-            if not head: continue
+            if not head:
+                if quick_screen:
+                    head = quick_screen
+                else:
+                    continue
 
             # Pelvis bone'u ayak olarak kullan (daha güvenilir)
             pelvis_scr = bones[0]["screen"] if len(bones) > 0 and bones[0]["screen"] else None

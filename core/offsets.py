@@ -79,9 +79,9 @@ class Offsets:
             return False
 
         try:
-            with open(offsets_path, "r") as f:
+            with open(offsets_path, "r", encoding="utf-8") as f:
                 off = json.load(f)
-            with open(client_path, "r") as f:
+            with open(client_path, "r", encoding="utf-8") as f:
                 cli = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             print(f"[ error ] Failed to parse JSON: {e}")
@@ -141,8 +141,13 @@ class Offsets:
         self.CurrentHealth        = field("C_BaseEntity", "m_iHealth")
         self.GameSceneNode        = field("C_BaseEntity", "m_pGameSceneNode")
 
-        # BoneArray: CSkeletonInstance.m_modelState = 0x150, bone ptr = +0x80
-        self.BoneArray            = 0x1D0  # 0x150 + 0x80
+        # BoneArray: CSkeletonInstance.m_modelState + 0x80
+        # m_modelState offset'ini client.dll.json'dan dinamik oku
+        _bone_mstate = find_field("m_modelState", ["CSkeletonInstance"])
+        if _bone_mstate:
+            self.BoneArray = _bone_mstate + 0x80
+        else:
+            self.BoneArray = 0x1C0  # fallback: 0x140 + 0x80
 
         self.angEyeAngles         = find_field("m_angEyeAngles",  ["C_CSPlayerPawn"])
 
