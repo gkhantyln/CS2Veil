@@ -243,7 +243,7 @@ def _read_bones(pawn_buf, pawn, m_snap, sw2, sh2):
     return out
 
 def _entity_loop():
-    global _ents,_local,_map_last_check
+    global _ents,_local,_map_last_check,_last_shot_time
     last_entry_update = 0
     last_weapon_update = 0
     _weapon_cache = {}
