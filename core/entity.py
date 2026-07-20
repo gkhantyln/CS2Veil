@@ -150,7 +150,7 @@ class PlayerPawn:
                                         name = raw[:end].decode(errors="ignore") if end != -1 else ""
                                         idx = name.find("_")
                                         if idx != -1 and name:
-                                            weapon_name = name[idx + 1:]
+                                            weapon_name = name[idx + 1:].lower()
         except Exception:
             pass
         self.weapon_name = weapon_name

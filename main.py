@@ -189,7 +189,7 @@ def _read_weapon(pawn):
     r = pm.read_memory(waddr, 32)
     if not r: return ""
     e = r.find(b'\x00'); n = r[:e].decode(errors="ignore") if e != -1 else ""
-    i = n.find("_"); return n[i+1:] if i != -1 else n
+    i = n.find("_"); return (n[i+1:] if i != -1 else n).lower()
 
 def _w2s_snapshot(m, sw2, sh2, pos):
     """Matrix snapshot ile world_to_screen — lock yok, entity loop'ta kullanılır."""

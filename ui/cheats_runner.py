@@ -194,7 +194,7 @@ def _read_weapon_name(pawn_addr: int) -> str:
     end = raw.find(b'\x00')
     name = raw[:end].decode(errors="ignore") if end != -1 else ""
     idx = name.find("_")
-    return name[idx+1:] if idx != -1 else name
+    return (name[idx+1:] if idx != -1 else name).lower()
 
 
 def _read_fov(pawn_addr: int) -> int:
