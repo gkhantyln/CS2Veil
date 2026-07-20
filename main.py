@@ -23,6 +23,8 @@ from mods.triggerbot import trigger_config, HOTKEY_NAMES as TRIG_HK
 from utils.kmbox import kmbox; kmbox.init_from_config("kmbox.json")
 from ui.menu import menu_config
 from utils.config_manager import save_config, load_config, load_last_config, list_configs, delete_config
+from mods.radar import radar_config, render_radar, add_point
+from utils.maps_data import map_state
 os.makedirs("config", exist_ok=True)
 
 # Pre-compiled struct parsers — her çağrıda format string parse etme
@@ -39,8 +41,9 @@ def _u64(buf, o): return _S_U64.unpack_from(buf, o)[0]
 def _f2(buf, o):  return _S_F2.unpack_from(buf, o)
 def _f3(buf, o):  return _S_F3.unpack_from(buf, o)
 
-import pygame, OpenGL.GL as gl, imgui
+import pygame, OpenGL.GL as gl, imgui, numpy as np
 from imgui.integrations.pygame import PygameRenderer
+from PIL import Image
 import win32api, win32con, win32gui
 
 user32 = ctypes.WinDLL("user32")
@@ -133,6 +136,26 @@ def _apply_stream_proof(enabled: bool):
     except Exception:
         pass
 
+# Radar textur yukleyici
+def _load_map_texture(png_path: str):
+    try:
+        img = Image.open(png_path).convert("RGBA")
+        w, h = img.size
+        img_data = np.array(img, dtype=np.uint8).tobytes()
+        tex_id = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, tex_id)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, w, h, 0,
+                        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        print(f"[ radar ] Texture loaded: {png_path} ({w}x{h})")
+        return tex_id
+    except Exception as e:
+        print(f"[ radar ] Texture load error: {e}")
+        return None
+
+_map_last_check = 0.0
+
 # Son kaydedilen config'i yukle
 try:
     if load_last_config(menu_config, aim_config, trigger_config, None):
@@ -141,6 +164,8 @@ try:
             _apply_stream_proof(True)
 except Exception as _e:
     print(f"[ config ] Yuklenemedi: {_e}")
+
+_last_shot_time = 0.0
 
 # ---- Entity thread ----
 _ents, _local, _lock = [], None, threading.Lock()
@@ -218,7 +243,7 @@ def _read_bones(pawn_buf, pawn, m_snap, sw2, sh2):
     return out
 
 def _entity_loop():
-    global _ents,_local
+    global _ents,_local,_map_last_check
     last_entry_update = 0
     last_weapon_update = 0
     _weapon_cache = {}
@@ -242,6 +267,13 @@ def _entity_loop():
             if now - last_entry_update > 1.0:
                 game.update_entity_list_entry()
                 last_entry_update = now
+
+            # Harita algilama ve radar textur yukleme (her 5 saniyede bir)
+            if now - _map_last_check > 5.0:
+                _map_last_check = now
+                map_name = game.get_map_name()
+                if map_name and map_name != map_state.current_map:
+                    map_state.update_map(map_name, _load_map_texture)
             ges=pm.read_u64(game.address.entity_list)
             base=game.address.entity_list_entry
             lc=pm.read_u64(game.address.local_controller)
@@ -419,6 +451,15 @@ def _entity_loop():
                         _ki = (ctypes.c_uint32 * 1)(0x20)
                         user32.keybd_event(0x20, 0, 0x0002, 0)  # KEYUP
                         user32.keybd_event(0x20, 0, 0x0000, 0)  # KEYDOWN
+
+            # Auto-pistol: tabancayla hizli ates (~6.6Hz, CS2 cap'i ~5.5)
+            if menu_config.auto_pistol and lp_buf:
+                wpn_local = loc.get("weapon", "")
+                if now - _last_shot_time > 0.15:  # ~6.6 ates/saniye
+                    if wpn_local in PISTOLS:
+                        if user32.GetAsyncKeyState(0x01) & 0x8000:  # LMB basili
+                            _do_click()
+                            _last_shot_time = now
 
         except Exception as _loop_err:
             import traceback
@@ -672,9 +713,9 @@ def _aim_loop():
                 _triggerbot_shoot()
 
         except Exception as _e:
-            pass
-
-        time.sleep(0.001)  # ~1000Hz
+            import traceback
+            print(f"[ aim_loop ERROR ] {_e}")
+            traceback.print_exc()
 
         time.sleep(0.001)  # ~1000Hz
 
@@ -739,8 +780,10 @@ def _rcs_loop():
             _old_p = pp
             _old_y = py
 
-        except Exception:
-            pass
+        except Exception as _e:
+            import traceback
+            print(f"[ rcs_loop ERROR ] {_e}")
+            traceback.print_exc()
         time.sleep(0.001)  # ~1000Hz
 
 threading.Thread(target=_rcs_loop, daemon=True, name="cs2veil-rcs").start()
@@ -762,8 +805,6 @@ class _INPUT_UNION(ctypes.Union):
     _fields_ = [("mi",_MOUSEINPUT)]
 class _INPUT(ctypes.Structure):
     _fields_ = [("type",_wt.DWORD),("_input",_INPUT_UNION)]
-
-_last_shot_time = 0.0
 
 def _do_click():
     """Sol tik - SendInput (CS2 mouse button icin raw input kullanmaz)."""
@@ -804,6 +845,13 @@ def _triggerbot_check(local, ents):
     for ent in ents:
         if menu_config.team_check and lt >= 2 and ent["team"] == lt:
             continue
+        # Mesafe limiti kontrolu
+        if menu_config.trig_max_distance > 0:
+            lx, ly, lz = local["pos"]
+            ex, ey, ez = ent["pos"]
+            dist_m = math.sqrt((ex-lx)**2 + (ey-ly)**2 + (ez-lz)**2) / 100
+            if dist_m > menu_config.trig_max_distance:
+                continue
         bones = ent["bones"]
         # Head veya neck bone ekran merkezine yakin mi?
         for bidx in [BONEINDEX.head, BONEINDEX.neck_0]:
@@ -909,15 +957,21 @@ def draw_crosshair(dl, local, ents):
         cr, cg, cb, ca = menu_config.crosshair_sniper_color
         col  = imgui.get_color_u32_rgba(cr, cg, cb, ca)
         colb = imgui.get_color_u32_rgba(0, 0, 0, ca * 0.6)
-        gap, size = 4, 12
-        dl.add_line(cx-size, cy, cx-gap, cy, colb, 3.0)
-        dl.add_line(cx+gap,  cy, cx+size, cy, colb, 3.0)
-        dl.add_line(cx-size, cy, cx-gap, cy, col,  1.5)
-        dl.add_line(cx+gap,  cy, cx+size, cy, col,  1.5)
-        dl.add_line(cx, cy-size, cx, cy-gap, colb, 3.0)
-        dl.add_line(cx, cy+gap,  cx, cy+size, colb, 3.0)
-        dl.add_line(cx, cy-size, cx, cy-gap, col,  1.5)
-        dl.add_line(cx, cy+gap,  cx, cy+size, col,  1.5)
+        gap, size = menu_config.crosshair_gap, 12
+        if menu_config.crosshair_t_shape:
+            dl.add_line(cx-size, cy, cx+size, cy, colb, 3.0)
+            dl.add_line(cx-size, cy, cx+size, cy, col,  1.5)
+            dl.add_line(cx, cy-size, cx, cy, colb, 3.0)
+            dl.add_line(cx, cy-size, cx, cy, col,  1.5)
+        else:
+            dl.add_line(cx-size, cy, cx-gap, cy, colb, 3.0)
+            dl.add_line(cx+gap,  cy, cx+size, cy, colb, 3.0)
+            dl.add_line(cx-size, cy, cx-gap, cy, col,  1.5)
+            dl.add_line(cx+gap,  cy, cx+size, cy, col,  1.5)
+            dl.add_line(cx, cy-size, cx, cy-gap, colb, 3.0)
+            dl.add_line(cx, cy+gap,  cx, cy+size, colb, 3.0)
+            dl.add_line(cx, cy-size, cx, cy-gap, col,  1.5)
+            dl.add_line(cx, cy+gap,  cx, cy+size, col,  1.5)
         dl.add_circle_filled(cx, cy, 1.5, col)
 
     # ── Dynamic Cross (Nokta + Glow) ─────────────────────────────────────
@@ -1052,6 +1106,9 @@ while True:
                 if ch: menu_config.dot_esp_color=list(v)
                 imgui.same_line()
                 _,menu_config.dot_esp_size=imgui.slider_float("Boyut##dotsize",menu_config.dot_esp_size,1.0,10.0,"%.1f")
+            _,menu_config.show_weapon_esp=imgui.checkbox("Silah Adi##wpn",menu_config.show_weapon_esp)
+            imgui.separator()
+            _,menu_config.show_fps=imgui.checkbox("FPS Gostergesi",menu_config.show_fps)
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Nishan Botu")[0]:
@@ -1113,6 +1170,9 @@ while True:
             _,menu_config.bhop_enabled=imgui.checkbox("Bunny Hop",menu_config.bhop_enabled)
             imgui.same_line(); imgui.text_colored("Space basili tutunca otomatik ziplama",0.6,0.6,0.6,1)
             imgui.separator()
+            _,menu_config.auto_pistol=imgui.checkbox("Auto-Pistol (Hizli Ates)",menu_config.auto_pistol)
+            imgui.same_line(); imgui.text_colored("Tabancalarda hizli ates",0.6,0.6,0.6,1)
+            imgui.separator()
             ch,menu_config.stream_proof=imgui.checkbox("Stream Proof (OBS Gizle)",menu_config.stream_proof)
             if ch:
                 _apply_stream_proof(menu_config.stream_proof)
@@ -1124,6 +1184,13 @@ while True:
                 imgui.text("  Flash Seviyesi:")
                 _,menu_config.flash_max_alpha=imgui.slider_int("##flash",menu_config.flash_max_alpha,0,255)
                 imgui.text("  (255=hic flash, 0=tam flash)")
+            imgui.separator()
+            _,menu_config.trig_max_distance=imgui.slider_int("Tetik Max Mesafe(m)",menu_config.trig_max_distance,0,100)
+            imgui.same_line(); imgui.text_colored("0=sinirsiz",0.6,0.6,0.6,1)
+            imgui.separator()
+            imgui.text("Radar Ayarlari:")
+            _,menu_config.radar_enabled=imgui.checkbox("Radar Goster##rdr",menu_config.radar_enabled)
+            _,menu_config.radar_size=imgui.combo("Radar Boyutu##rdr",menu_config.radar_size,["Kucuk(300)","Buyuk(600)"])
             imgui.separator()
             # Config kayit/yukle
             imgui.text("Config Yonetimi:")
@@ -1181,6 +1248,8 @@ while True:
                 ch,v = imgui.color_edit4("##scol", *menu_config.crosshair_sniper_color, flags=imgui.COLOR_EDIT_NO_INPUTS | imgui.COLOR_EDIT_ALPHA_PREVIEW)
                 if ch: menu_config.crosshair_sniper_color = list(v)
                 imgui.same_line(); imgui.text_colored("Ince arti nishangah", 0.6,0.6,0.6,1)
+                _,menu_config.crosshair_gap = imgui.slider_float("Bosluk##cg", menu_config.crosshair_gap, 0.0, 12.0, "%.1f")
+                _,menu_config.crosshair_t_shape = imgui.checkbox("T-Sekli##ts", menu_config.crosshair_t_shape)
 
             # Dynamic Cross
             _,menu_config.crosshair_dynamic = imgui.checkbox("Dynamic Cross##dc", menu_config.crosshair_dynamic)
@@ -1235,6 +1304,13 @@ while True:
         else:
             dl.add_text(10, 10, imgui.get_color_u32_rgba(1, 0, 0, 1),
                         f"CS2Veil | 0 | T{lt_dbg}")
+        # FPS gostergesi
+        if menu_config.show_fps:
+            fps = clock.get_fps()
+            fps_col = imgui.get_color_u32_rgba(0.0, 1.0, 0.0, 0.8) if fps >= 55 else \
+                      imgui.get_color_u32_rgba(1.0, 1.0, 0.0, 0.8) if fps >= 30 else \
+                      imgui.get_color_u32_rgba(1.0, 0.0, 0.0, 0.8)
+            dl.add_text(10, 26, fps_col, f"FPS: {fps:.0f}")
         lt=local["team"]
         aim_pos=None; max_d=float('inf')
 
@@ -1422,6 +1498,13 @@ while True:
                 dm=int(math.sqrt((ex2-lx)**2+(ey-ly)**2+(ez-lz)**2)/100)
                 dl.add_text(x2+4,y1,imgui.get_color_u32_rgba(*menu_config.distance_color),f"{dm}m")
 
+            if menu_config.show_weapon_esp:
+                wpn_name = ent.get("weapon", "")
+                if wpn_name:
+                    wpn_x = x1 + (x2 - x1) / 2 - len(wpn_name) * 13 * 0.25
+                    wpn_y = y2 + 14
+                    dl.add_text(wpn_x, wpn_y, imgui.get_color_u32_rgba(0.85, 0.85, 0.85, 0.9), wpn_name)
+
         if aim_config.show_fov_circle:
             fr=math.tan(aim_config.fov/180*math.pi/2)
             pr=math.tan(max(local["fov"],1)/180*math.pi/2)
@@ -1432,6 +1515,63 @@ while True:
                 menu_config.crosshair_dynamic, menu_config.crosshair_snaplines,
                 menu_config.crosshair_arrows]):
             draw_crosshair(dl, local, ents)
+
+        # Radar - minimap gosterimi
+        # Radar boyutunu guncelle
+        if menu_config.radar_size == 0:
+            map_state.radar_size = 300
+            map_state.line_length = 6
+            map_state.circle_size = 2.0
+        else:
+            map_state.radar_size = 600
+            map_state.line_length = 10
+            map_state.circle_size = 5.0
+
+        if menu_config.radar_enabled:
+            # Radar icin entity verilerini topla
+            _radar_points = []
+            lpos = local.get("pos", (0,0,0))
+            lang = local.get("ang", (0,0))
+            lteam = local.get("team", 0)
+            for ent in ents:
+                if menu_config.team_check and lteam >= 2 and ent["team"] == lteam:
+                    continue
+                rp = {"pos": ent["pos"], "team": ent["team"],
+                      "hp": ent["hp"], "ang": ent.get("ang", (0,0))}
+                _radar_points.append(rp)
+            # Radar pozisyonu
+            radar_x = W - 10 - map_state.radar_size
+            radar_y = H - 10 - map_state.radar_size
+            # Arka plan
+            dl.add_rect_filled(radar_x, radar_y, radar_x + map_state.radar_size,
+                               radar_y + map_state.radar_size,
+                               imgui.get_color_u32_rgba(0, 0, 0, 0.7), 4)
+            if map_state.texture_id:
+                dl.add_image(map_state.texture_id, radar_x, radar_y,
+                             radar_x + map_state.radar_size,
+                             radar_y + map_state.radar_size)
+            # Noktalari ciz
+            ll = map_state.line_length
+            cs = map_state.circle_size
+            for rp in _radar_points:
+                ex, ey, ez = rp["pos"]
+                mx, my = map_state.world_to_minimap_split(ex, ey, ez)
+                px = mx + radar_x
+                py = my + radar_y
+                if rp["team"] == lteam:
+                    col = imgui.get_color_u32_rgba(0, 1, 0, 1)
+                else:
+                    col = imgui.get_color_u32_rgba(1, 0, 0, 1)
+                    dl.add_text(px - 8, py + 2, imgui.get_color_u32_rgba(0, 1, 0, 1), str(rp["hp"]))
+                radian = rp["ang"][1] * (math.pi / 180)
+                top_x  = px + math.sin(radian) * ll
+                top_y  = py + math.cos(radian) * ll
+                left_x = px + math.sin(radian + math.pi / 3) * ll / 2
+                left_y = py + math.cos(radian + math.pi / 3) * ll / 2
+                right_x= px + math.sin(radian - math.pi / 3) * ll / 2
+                right_y= py + math.cos(radian - math.pi / 3) * ll / 2
+                dl.add_circle(px, py, cs, col, 0, 5)
+                dl.add_triangle(left_x, left_y, right_x, right_y, top_x, top_y, col, 3)
 
         # Triggerbot - crosshair'daki dusmana ates et
         trig_key = bool(user32.GetAsyncKeyState(trigger_config.hotkey) & 0x8000)

@@ -121,6 +121,7 @@ Bu mimari sayesinde ESP donmaz, aim gecikmesiz çalışır.
 | **Bakış Çizgisi** | Düşmanın baktığı yönü gösterir |
 | **Düşmana Çizgi** | Ekran merkezinden düşmana çizgi |
 | **Sadece FOV İçindekiler** | Nişan alanı dışındakileri gizler — FPS artışı sağlar |
+| **Silah Adı** | Düşmanın elindeki silahın adını gösterir |
 
 ---
 
@@ -146,7 +147,7 @@ Bu mimari sayesinde ESP donmaz, aim gecikmesiz çalışır.
 | **Ease-out Smooth** | Hedefe uzakta hızlı, yakında yavaş yaklaşır. Doğal görünüm + titremesiz kilitlenme |
 | **Hedef Kilidi** | Bir kez kilitlenen hedefe, o hedef ölene veya FOV'dan çıkana kadar devam eder. Birden fazla düşman varken aim kararsız olmaz |
 | **Aim Oturunca Ateş Et** | Aim açısı belirlenen eşiğin altına düşünce otomatik ateş eder. Eşik ayarlanabilir (0.1–3.0 derece) |
-| **Spray Kontrol** | AK47, M4A1, FAMAS, Galil için `iShotsFired` bazlı recoil pattern kompansasyonu |
+| **Spray Kontrol** | 15 silah için `iShotsFired` bazlı recoil pattern kompansasyonu: AK47, M4A1, M4A4, FAMAS, Galil, AUG, SG553, MAC-10, MP5-SD, MP7, MP9, P90, PP-Bizon, UMP-45, Negev, M249 |
 | **Çömelme Tahmini** | Hedefin Z velocity'si negatife döndüğünde çömelme hareketi tahmin edilir |
 
 ---
@@ -170,6 +171,7 @@ Bu mimari sayesinde ESP donmaz, aim gecikmesiz çalışır.
 |------|---------|
 | **Mod** | Tuşa Basınca / Her Zaman |
 | **Gecikme** | 0–250ms arası |
+| **Max Mesafe** | 0–100m arası. 0 = sınırsız |
 
 Crosshair merkezinde head/neck bone varsa otomatik sol tık gönderir.
 
@@ -180,7 +182,7 @@ Crosshair merkezinde head/neck bone varsa otomatik sol tık gönderir.
 | Özellik | Açıklama |
 |---------|---------|
 | **Recoil Cross** | Ateş ederken geri tepmenin gittiği yönü gösterir |
-| **Sniper Cross** | Outline'lı ince artı nişangah |
+| **Sniper Cross** | Outline'lı ince artı nişangah. Boşluk (gap) ve T-şekli ayarlanabilir |
 | **Dynamic Cross** | Ateş ettikçe büyüyen glow efektli nişangah |
 | **Snap Lines** | Ekran altından düşmanın ayağına çizgi |
 | **Dış Oklar** | Düşman yönünü gösteren oklar, HP'ye göre renk değişir |
@@ -193,6 +195,9 @@ Crosshair merkezinde head/neck bone varsa otomatik sol tık gönderir.
 |---------|---------|
 | **No Flash** | Flash bombası görünmez veya seviyesi sınırlanır |
 | **Bunny Hop** | Space basılı tutunca yere değdiğinde otomatik zıplar |
+| **Auto-Pistol** | Tabancalarla hızlı ateş (debounce 150ms). LMB basılı tutunca otomatik yeniden ateş eder |
+| **Radar** | Minimap benzeri radar. 2 boyut: Küçük (300px) / Büyük (600px). Harita PNG varsa texture yükler, yoksa siyah zemin |
+| **FPS Göstergesi** | Sol üstte canlı FPS sayacı (yeşil/sarı/kırmızı) |
 | **Stream Proof** | OBS / Discord ekran paylaşımında overlay gizlenir |
 | **Auto Update** | Program açılışında offset ve kod güncellemelerini otomatik kontrol eder |
 
@@ -290,14 +295,15 @@ https://github.com/a2x/cs2-dumper/tree/main/output
 
 ```
 CS2Veil/
-├── main.py              ← Ana program
+├── main.py              ← Ana program (ESP, radar, crosshair, menu, auto-pistol, FPS)
 ├── offsets.json         ← CS2 offset'leri (güncel tutun)
 ├── client.dll.json      ← CS2 client offset'leri (güncel tutun)
+├── maps/                ← Radar harita PNG'leri (opsiyonel)
 ├── config/              ← Kayıtlı config dosyaları
 ├── core/                ← Bellek okuma, entity, view modülleri
-├── mods/                ← Aimbot, Triggerbot, Radar
-├── ui/                  ← Arayüz
-├── utils/               ← Config yönetimi, yardımcı araçlar
+├── mods/                ← Aimbot (spray pattern'ler dahil), Triggerbot, Radar
+├── ui/                  ← Menu arayüzü
+├── utils/               ← Config yönetimi, harita verisi, offset güncelleyici
 └── externalv2/          ← Test / yedek sürüm
 ```
 

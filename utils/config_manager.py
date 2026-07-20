@@ -57,6 +57,10 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "crosshair_snaplines_color":menu_cfg.crosshair_snaplines_color,
             "crosshair_arrows":         menu_cfg.crosshair_arrows,
             "crosshair_arrows_color":   menu_cfg.crosshair_arrows_color,
+            "crosshair_gap":            menu_cfg.crosshair_gap,
+            "crosshair_t_shape":        menu_cfg.crosshair_t_shape,
+            "show_weapon_esp":          menu_cfg.show_weapon_esp,
+            "show_fps":                 menu_cfg.show_fps,
         },
         "settings": {
             "team_check":         menu_cfg.team_check,
@@ -64,6 +68,10 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "flash_max_alpha":    menu_cfg.flash_max_alpha,
             "stream_proof":       menu_cfg.stream_proof,
             "bhop_enabled":       menu_cfg.bhop_enabled,
+            "auto_pistol":        menu_cfg.auto_pistol,
+            "trig_max_distance":  menu_cfg.trig_max_distance,
+            "radar_enabled":      menu_cfg.radar_enabled,
+            "radar_size":         menu_cfg.radar_size,
         },
         "aimbot": {
             "enabled":            aim_cfg.enabled,
@@ -94,7 +102,10 @@ def save_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
             "mode":               trig_cfg.mode,
             "delay_ms":           trig_cfg.delay_ms,
         },
-        "radar": {},  # Kaldirildi
+        "radar": {
+            "enabled":             menu_cfg.radar_enabled,
+            "size":                menu_cfg.radar_size,
+        },
     }
 
     try:
@@ -167,6 +178,10 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.crosshair_snaplines_color = v.get("crosshair_snaplines_color", menu_cfg.crosshair_snaplines_color)
     menu_cfg.crosshair_arrows          = v.get("crosshair_arrows",          menu_cfg.crosshair_arrows)
     menu_cfg.crosshair_arrows_color    = v.get("crosshair_arrows_color",    menu_cfg.crosshair_arrows_color)
+    menu_cfg.crosshair_gap             = float(v.get("crosshair_gap",       menu_cfg.crosshair_gap))
+    menu_cfg.crosshair_t_shape         = v.get("crosshair_t_shape",         menu_cfg.crosshair_t_shape)
+    menu_cfg.show_weapon_esp           = v.get("show_weapon_esp",           menu_cfg.show_weapon_esp)
+    menu_cfg.show_fps                  = v.get("show_fps",                  menu_cfg.show_fps)
 
     s = data.get("settings", {})
     menu_cfg.team_check          = s.get("team_check",         menu_cfg.team_check)
@@ -174,6 +189,10 @@ def load_config(filename: str, menu_cfg, aim_cfg, trig_cfg, radar_cfg) -> bool:
     menu_cfg.flash_max_alpha     = s.get("flash_max_alpha",    menu_cfg.flash_max_alpha)
     menu_cfg.stream_proof        = s.get("stream_proof",       menu_cfg.stream_proof)
     menu_cfg.bhop_enabled        = s.get("bhop_enabled",       menu_cfg.bhop_enabled)
+    menu_cfg.auto_pistol         = s.get("auto_pistol",        menu_cfg.auto_pistol)
+    menu_cfg.trig_max_distance   = s.get("trig_max_distance",  menu_cfg.trig_max_distance)
+    menu_cfg.radar_enabled       = s.get("radar_enabled",      menu_cfg.radar_enabled)
+    menu_cfg.radar_size          = s.get("radar_size",         menu_cfg.radar_size)
 
     a = data.get("aimbot", {})
     aim_cfg.enabled              = a.get("enabled",            aim_cfg.enabled)

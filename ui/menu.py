@@ -69,6 +69,18 @@ class MenuConfig:
         # Dış oklar
         self.crosshair_arrows        = False
         self.crosshair_arrows_color  = [1.0, 0.5, 0.0, 0.9]   # Turuncu başlangıç
+        # Radar
+        self.radar_enabled       = False
+        self.radar_size          = 0      # 0=Small 1=Big
+        # Auto-pistol
+        self.auto_pistol         = False
+        # Triggerbot mesafe limiti
+        self.trig_max_distance   = 0      # 0=sınırsız, metre cinsinden
+        # Crosshair ek özellikler
+        self.crosshair_gap       = 4.0    # Sniper cross gap
+        self.crosshair_t_shape   = False
+        # FPS göstergesi
+        self.show_fps            = False
 
 menu_config = MenuConfig()
 _config_name_buf = [""]
