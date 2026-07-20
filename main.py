@@ -723,13 +723,17 @@ threading.Thread(target=_aim_loop, daemon=True, name="cs2veil-aim").start()
 
 # ── RCS Thread — ~1000Hz, aim loop'tan bağımsız ──────────────────────────────
 def _rcs_loop():
-    """RCS: her frame punch angle'ı oku, view angle'dan çıkar."""
+    """RCS: punch delta'sını view angle'a uygula (sadece degisim aninda)."""
+    _old_p = 0.0
+    _old_y = 0.0
     while True:
         try:
             if not aim_config.rcs_enabled:
+                _old_p = 0.0; _old_y = 0.0
                 time.sleep(0.005); continue
 
             if not bool(user32.GetAsyncKeyState(0x01) & 0x8000):
+                _old_p = 0.0; _old_y = 0.0
                 time.sleep(0.001); continue
 
             with _lock:
@@ -762,21 +766,20 @@ def _rcs_loop():
             else:
                 time.sleep(0.001); continue
 
-            if abs(pp) < 0.001 and abs(py) < 0.001:
-                time.sleep(0.001); continue
+            # Delta: punch'taki degisim
+            dp = pp - _old_p
+            dy = py - _old_y
 
-            # View angle oku
-            va_raw = pm.read_memory(game.address.view_angle, 8)
-            if not va_raw or len(va_raw) < 8:
-                time.sleep(0.001); continue
-            cur_p, cur_y = _S_F2.unpack(va_raw)
-
-            # Punch'ı view angle'dan çıkar (negate)
-            new_p = max(-89.0, min(89.0, cur_p - pp * aim_config.rcs_scale))
-            new_y = cur_y - py * aim_config.rcs_scale
-
-            pm.write_memory(game.address.view_angle,
-                            struct.pack("<ff", new_p, new_y))
+            if abs(dp) > 0.001 or abs(dy) > 0.001:
+                va_raw = pm.read_memory(game.address.view_angle, 8)
+                if va_raw and len(va_raw) == 8:
+                    cur_p, cur_y = _S_F2.unpack(va_raw)
+                    new_p = max(-89.0, min(89.0, cur_p - dp * aim_config.rcs_scale))
+                    new_y = cur_y - dy * aim_config.rcs_scale
+                    pm.write_memory(game.address.view_angle,
+                                    struct.pack("<ff", new_p, new_y))
+            _old_p = pp
+            _old_y = py
 
         except Exception as _e:
             import traceback
