@@ -1190,7 +1190,7 @@ while True:
             imgui.separator()
             imgui.text("Radar Ayarlari:")
             _,menu_config.radar_enabled=imgui.checkbox("Radar Goster##rdr",menu_config.radar_enabled)
-            _,menu_config.radar_size=imgui.combo("Radar Boyutu##rdr",menu_config.radar_size,["Kucuk(300)","Buyuk(600)"])
+            _,menu_config.radar_size=imgui.combo("Radar Boyutu##rdr",menu_config.radar_size,["Kucuk(120)","Orta(200)","Buyuk(280)"])
             imgui.separator()
             # Config kayit/yukle
             imgui.text("Config Yonetimi:")
@@ -1518,9 +1518,9 @@ while True:
 
         # Radar - uçak radarı stili (dairesel, sag tarafta)
         if menu_config.radar_enabled:
-            RADIUS = 150 if menu_config.radar_size == 0 else 300
-            cx = W - RADIUS - 30
-            cy = H // 2
+            RADIUS = [120, 200, 280][menu_config.radar_size]
+            cx = W - RADIUS - 25
+            cy = RADIUS + 25
 
             lpos = local.get("pos", (0,0,0))
             lang = local.get("ang", (0,0))
