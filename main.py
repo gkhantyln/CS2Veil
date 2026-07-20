@@ -23,7 +23,7 @@ from mods.triggerbot import trigger_config, HOTKEY_NAMES as TRIG_HK
 from utils.kmbox import kmbox; kmbox.init_from_config("kmbox.json")
 from ui.menu import menu_config
 from utils.config_manager import save_config, load_config, load_last_config, list_configs, delete_config
-from mods.radar import radar_config, render_radar, add_point
+from mods.radar import radar_config
 from utils.maps_data import map_state
 os.makedirs("config", exist_ok=True)
 
@@ -1516,62 +1516,90 @@ while True:
                 menu_config.crosshair_arrows]):
             draw_crosshair(dl, local, ents)
 
-        # Radar - minimap gosterimi
-        # Radar boyutunu guncelle
-        if menu_config.radar_size == 0:
-            map_state.radar_size = 300
-            map_state.line_length = 6
-            map_state.circle_size = 2.0
-        else:
-            map_state.radar_size = 600
-            map_state.line_length = 10
-            map_state.circle_size = 5.0
-
+        # Radar - uçak radarı stili (dairesel, sag tarafta)
         if menu_config.radar_enabled:
-            # Radar icin entity verilerini topla
-            _radar_points = []
+            RADIUS = 150 if menu_config.radar_size == 0 else 300
+            cx = W - RADIUS - 30
+            cy = H // 2
+
             lpos = local.get("pos", (0,0,0))
             lang = local.get("ang", (0,0))
             lteam = local.get("team", 0)
-            for ent in ents:
-                if menu_config.team_check and lteam >= 2 and ent["team"] == lteam:
-                    continue
-                rp = {"pos": ent["pos"], "team": ent["team"],
-                      "hp": ent["hp"], "ang": ent.get("ang", (0,0))}
-                _radar_points.append(rp)
-            # Radar pozisyonu
-            radar_x = W - 10 - map_state.radar_size
-            radar_y = H - 10 - map_state.radar_size
-            # Arka plan
-            dl.add_rect_filled(radar_x, radar_y, radar_x + map_state.radar_size,
-                               radar_y + map_state.radar_size,
-                               imgui.get_color_u32_rgba(0, 0, 0, 0.7), 4)
-            if map_state.texture_id:
-                dl.add_image(map_state.texture_id, radar_x, radar_y,
-                             radar_x + map_state.radar_size,
-                             radar_y + map_state.radar_size)
-            # Noktalari ciz
-            ll = map_state.line_length
-            cs = map_state.circle_size
-            for rp in _radar_points:
-                ex, ey, ez = rp["pos"]
-                mx, my = map_state.world_to_minimap_split(ex, ey, ez)
-                px = mx + radar_x
-                py = my + radar_y
-                if rp["team"] == lteam:
-                    col = imgui.get_color_u32_rgba(0, 1, 0, 1)
-                else:
-                    col = imgui.get_color_u32_rgba(1, 0, 0, 1)
-                    dl.add_text(px - 8, py + 2, imgui.get_color_u32_rgba(0, 1, 0, 1), str(rp["hp"]))
-                radian = rp["ang"][1] * (math.pi / 180)
-                top_x  = px + math.sin(radian) * ll
-                top_y  = py + math.cos(radian) * ll
-                left_x = px + math.sin(radian + math.pi / 3) * ll / 2
-                left_y = py + math.cos(radian + math.pi / 3) * ll / 2
-                right_x= px + math.sin(radian - math.pi / 3) * ll / 2
-                right_y= py + math.cos(radian - math.pi / 3) * ll / 2
-                dl.add_circle(px, py, cs, col, 0, 5)
-                dl.add_triangle(left_x, left_y, right_x, right_y, top_x, top_y, col, 3)
+
+            # Arka plan - koyu yuvarlak
+            dl.add_circle_filled(cx, cy, RADIUS,
+                imgui.get_color_u32_rgba(0.03, 0.03, 0.06, 0.95), 0)
+            # Dis cerceve
+            dl.add_circle(cx, cy, RADIUS,
+                imgui.get_color_u32_rgba(0, 0.7, 0.15, 0.5), 0, 2)
+            # Ic cerceve (hafif)
+            dl.add_circle(cx, cy, RADIUS - 1,
+                imgui.get_color_u32_rgba(0, 0.5, 0.1, 0.15), 0, 1)
+
+            # Esmerkezli halkalar (menzil gostergesi)
+            ring_col = imgui.get_color_u32_rgba(0, 0.5, 0.1, 0.2)
+            for i in range(1, 5):
+                dl.add_circle(cx, cy, RADIUS * i / 4, ring_col, 0, 1)
+
+            # Capraz cizgiler (hedefleme)
+            cross_c = imgui.get_color_u32_rgba(0, 0.4, 0.08, 0.15)
+            dl.add_line(cx - RADIUS, cy, cx + RADIUS, cy, cross_c, 1)
+            dl.add_line(cx, cy - RADIUS, cx, cy + RADIUS, cross_c, 1)
+
+            # Tarama cizgisi (donen)
+            scan_t = time.monotonic() * 1.2
+            scan_a = scan_t % (2 * math.pi)
+            scan_x = cx + math.cos(scan_a) * RADIUS
+            scan_y = cy + math.sin(scan_a) * RADIUS
+            dl.add_line(cx, cy, scan_x, scan_y,
+                imgui.get_color_u32_rgba(0, 0.8, 0.25, 0.35), 1)
+
+            # Entity noktalari
+            if lpos and lang:
+                lx, ly, lz = lpos
+                player_yaw = lang[1] * (math.pi / 180.0)
+                cos_yaw = math.cos(player_yaw)
+                sin_yaw = math.sin(player_yaw)
+                max_range = 1500.0
+                scale_f = RADIUS / max_range
+
+                for ent in ents:
+                    if menu_config.team_check and lteam >= 2 and ent["team"] == lteam:
+                        continue
+                    ex, ey, ez = ent["pos"]
+                    wx = ex - lx
+                    wy = ey - ly
+                    rx = wx * cos_yaw - wy * sin_yaw
+                    ry = wx * sin_yaw + wy * cos_yaw
+                    sx = rx * scale_f
+                    sy = -ry * scale_f
+
+                    dist = math.hypot(sx, sy)
+                    margin = 12
+                    if dist > RADIUS - margin:
+                        if dist > 0.01:
+                            sx = sx / dist * (RADIUS - margin)
+                            sy = sy / dist * (RADIUS - margin)
+                        else:
+                            continue
+
+                    px = cx + sx
+                    py = cy + sy
+
+                    if ent["team"] == lteam:
+                        col = imgui.get_color_u32_rgba(0, 0.9, 0.3, 0.9)
+                    else:
+                        col = imgui.get_color_u32_rgba(1, 0.2, 0.15, 0.9)
+                        hp_str = str(int(ent["hp"]))
+                        dl.add_text(px - 6, py + 5,
+                            imgui.get_color_u32_rgba(0, 1, 0, 1), hp_str)
+
+                    # Nokta (blip)
+                    blip_r = 3 if ent["team"] != lteam else 2
+                    dl.add_circle_filled(px, py, blip_r, col, 0)
+                    # Parlama efekti
+                    dl.add_circle(px, py, blip_r + 2,
+                        imgui.get_color_u32_rgba(0, 0.9, 0.3, 0.25), 0, 1)
 
         # Triggerbot - crosshair'daki dusmana ates et
         trig_key = bool(user32.GetAsyncKeyState(trigger_config.hotkey) & 0x8000)
